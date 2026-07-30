@@ -182,6 +182,18 @@ export function candidateCountForQuality(qualityMode: QualityMode): number {
   }
 }
 
+/**
+ * Extra submissions granted when the PROVIDER returns no usable clip, in EVERY quality mode.
+ *
+ * Distinct from the per-quality repair budget above: a repair re-renders with a corrected prompt
+ * because the inspector judged the content wrong, and economy buys none of those because the customer
+ * accepted the first take. A failed prediction is different — nothing is wrong with the request, the
+ * render simply did not happen, and one dead shot kills the whole job at the inspection gate along
+ * with every clip already paid for. Small on purpose: a genuine Atlas outage should surface fast
+ * instead of retrying through the customer's balance.
+ */
+export const PROVIDER_FAILURE_RETRY_ATTEMPTS = 2;
+
 export function repairAttemptCountForQuality(qualityMode: QualityMode): number {
   switch (qualityMode) {
     case "economy":

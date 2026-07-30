@@ -155,8 +155,19 @@ const deliverySource = readFileSync(new URL("../src/core/delivery-gate.ts", impo
 check("tolerance_exported_from_delivery_gate", /export const DURATION_SHORT_BLOCK_TOLERANCE = 0\.1;/.test(deliverySource));
 check("pre_spend_imports_shared_tolerance", /import \{ DURATION_SHORT_BLOCK_TOLERANCE \} from "\.\.\/core\/delivery-gate\.js";/.test(directorSource) && !/const DELIVERABLE_DURATION_SHORTFALL_TOLERANCE/.test(directorSource));
 // Cost estimate must count the verifier's regenerations + its vision calls (was 4 images/3 calls
-// estimated vs 8 images/11 calls really paid in the incident).
-check("cost_estimate_counts_verifier_regens", directorSource.includes("(shots.length + characterAnchors.length) * (this.imageAnchorVerifier ? 2 : 1)"));
+// estimated vs 8 images/11 calls really paid in the incident). Asserted on the FACTORS rather than
+// the exact expression: the previous version pinned the whole formula as a literal string and went
+// red the moment the character term gained its turnaround-view multiplier, reporting a regression
+// where the estimate had in fact become more accurate.
+const keyframeEstimate = directorSource.slice(
+  directorSource.indexOf("plannedKeyframeImageCount: keyframeFirstEnabled"),
+  directorSource.indexOf("plannedTalkingShotCount:")
+);
+check("cost_estimate_counts_verifier_regens", /this\.imageAnchorVerifier \? 2 : 1/.test(keyframeEstimate), keyframeEstimate.slice(0, 160));
+check("cost_estimate_counts_every_shot_and_character", /shots\.length/.test(keyframeEstimate) && /characterAnchors\.length/.test(keyframeEstimate));
+// Each recurring character costs one portrait PER TURNAROUND VIEW, so the character term must be
+// multiplied by the view count or a large cast silently overruns maxCostUsd.
+check("cost_estimate_counts_every_portrait_view", /CHARACTER_PORTRAIT_VIEWS\.length/.test(keyframeEstimate), keyframeEstimate.slice(0, 200));
 check("cost_estimate_counts_verifier_vision_calls", directorSource.includes("plannedLlmPlanCallCount + plannedVerifierVisionCallCount"));
 
 const failed = checks.filter((c) => !c.pass);

@@ -8,7 +8,11 @@ import type { RenderCostEstimate, CostEstimationSettings } from "../types/cost.j
 import type { CompiledPrompt } from "../types/prompt.js";
 import type { ProviderReference } from "../types/provider.js";
 import type { FlexibleSeedanceSettings } from "../types/settings.js";
-import { candidateCountForQuality, repairAttemptCountForQuality } from "../config/seedance-settings.js";
+import {
+  candidateCountForQuality,
+  PROVIDER_FAILURE_RETRY_ATTEMPTS,
+  repairAttemptCountForQuality
+} from "../config/seedance-settings.js";
 
 export class RenderCostGate {
   private readonly settings: CostEstimationSettings;
@@ -47,10 +51,21 @@ export class RenderCostGate {
     // so each talking shot is priced ONCE (as avatar); the candidate/repair multiplier applies only
     // to the remaining b-roll seconds (avatar shots don't run best-of-N/repair).
     const plannedGeneralRenderSeconds = Math.max(0, plannedSinglePassRenderSeconds - plannedAvatarRenderSeconds);
-    const plannedClipCount = input.compiledPrompts.length * (candidateCount + repairAttemptCount) + plannedTestTakeCount;
+    // A shot whose PROVIDER returned nothing usable is re-submitted in every quality mode, including
+    // economy, which buys no content repairs — a failed prediction is not a quality choice the
+    // customer made, and one dead shot kills the whole job at the inspection gate. Those extra
+    // submissions are real renders, so the ceiling has to include them or maxCostUsd stops being one.
+    // This is a worst case (every shot failing on the provider side); the gate may only block sooner.
+    const attemptsPerShot = candidateCount + repairAttemptCount + PROVIDER_FAILURE_RETRY_ATTEMPTS;
+    const plannedClipCount = input.compiledPrompts.length * attemptsPerShot + plannedTestTakeCount;
     const plannedCandidateRenderSeconds = plannedGeneralRenderSeconds * candidateCount;
     const plannedRepairRenderSeconds = plannedGeneralRenderSeconds * repairAttemptCount;
-    const plannedRenderSeconds = plannedCandidateRenderSeconds + plannedRepairRenderSeconds + plannedTestTakeRenderSeconds;
+    const plannedProviderRetryRenderSeconds = plannedGeneralRenderSeconds * PROVIDER_FAILURE_RETRY_ATTEMPTS;
+    const plannedRenderSeconds =
+      plannedCandidateRenderSeconds +
+      plannedRepairRenderSeconds +
+      plannedProviderRetryRenderSeconds +
+      plannedTestTakeRenderSeconds;
     const referenceRegistrationCount = this.countRegisterableReferences(input.compiledPrompts);
     const estimatedRenderCostUsd = this.multiply(plannedRenderSeconds, this.settings.renderCostUsdPerSecond);
     const estimatedAssetRegistrationCostUsd = this.multiply(referenceRegistrationCount, this.settings.assetRegistrationCostUsd);

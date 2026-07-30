@@ -6,6 +6,7 @@
 import {
   candidateCountForQuality,
   MAX_CLIP_DURATION_SECONDS,
+  PROVIDER_FAILURE_RETRY_ATTEMPTS,
   repairAttemptCountForQuality,
   SEEDANCE_TEST_TAKE_DURATION_SECONDS,
   resolveSeedanceModelId,
@@ -129,6 +130,14 @@ import { ReferenceVisionAnalyst, reconcileReferenceRoles } from "./reference-vis
  * follow instead of the video model inventing a profile.
  */
 const CHARACTER_PORTRAIT_VIEWS: readonly PortraitView[] = ["front", "three_quarter", "side"];
+
+/**
+ * True when the provider gave back nothing usable — a failed/canceled prediction, or a "succeeded"
+ * one carrying no output URL. Both mean the render did not happen, as opposed to happening badly.
+ */
+function isProviderRenderFailure(candidate: { readonly prediction: Prediction }): boolean {
+  return candidate.prediction.status !== "succeeded" || candidate.prediction.outputUrls.length === 0;
+}
 
 /** Per-track deadline for measuring a synthesized voice file; the shared runner's default is 30 min. */
 const VOICE_TRACK_PROBE_TIMEOUT_MS = 15_000;
@@ -1939,6 +1948,41 @@ export class DirectorAgent {
     }
 
     let selectedCandidate = this.selectBestCandidate(candidates);
+
+    // PROVIDER FAILURE IS NOT A CONTENT PROBLEM, and it is not the customer's to absorb.
+    //
+    // The repair loop below re-renders with a CORRECTED prompt, and its budget is a quality choice:
+    // economy buys zero repairs because the customer accepted the first take. But when Atlas returns
+    // a failed prediction, or returns success with no usable output, there is nothing to correct —
+    // the render simply did not happen. Charging that to the repair budget meant an economy order
+    // (zero repairs) died on the first provider hiccup, and one dead shot kills the whole job at the
+    // inspection gate, discarding every other clip already paid for.
+    //
+    // So a provider failure gets its own small budget, granted in every quality mode, and re-submits
+    // the SAME prompt — there is no correction to make. Bounded at a few attempts so a genuine Atlas
+    // outage fails fast instead of spinning through the customer's balance; counted in the budget
+    // estimate so maxCostUsd still holds.
+    for (
+      let providerRetry = 1;
+      providerRetry <= PROVIDER_FAILURE_RETRY_ATTEMPTS && isProviderRenderFailure(selectedCandidate);
+      providerRetry += 1
+    ) {
+      this.reportStageProgress("render", "warn", "Provider returned no usable clip; re-rendering this shot.", {
+        shotId: input.shot.shotId,
+        providerRetryAttempt: providerRetry,
+        providerStatus: selectedCandidate.prediction.status
+      });
+      const retryCandidate = await this.renderCandidate({
+        shot: input.shot,
+        compiledPrompt: selectedCandidate.compiledPrompt,
+        candidateIndex: candidates.length + 1,
+        ...(input.visualCuration ? { visualCuration: input.visualCuration } : {}),
+        signal: input.signal
+      });
+      candidates.push(retryCandidate);
+      selectedCandidate = this.selectBestCandidate(candidates);
+    }
+
     for (
       let repairAttempt = 1;
       repairAttempt <= input.repairAttemptCount && this.needsRenderRepair(selectedCandidate.renderInspection);

@@ -156,7 +156,6 @@ const auditedValidationCommandNames = [
   "validation:candidate-visual-curation",
   "validation:cinematic-grammar",
   "validation:client-policy-smoke",
-  "validation:clip-salvage-store",
   "validation:commercial-inputs",
   "validation:commercial-policy",
   "validation:completion-audit",
