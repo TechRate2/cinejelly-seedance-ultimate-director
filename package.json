@@ -181,7 +181,8 @@
     "ops:promote-attestations": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/promote-operator-attestations.mjs",
     "start": "node --env-file-if-exists=.env dist/api/server.js",
     "validation:content-safety-punctuation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-content-safety-punctuation-smoke.mjs",
-    "validation:speech-duration-guard": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-speech-duration-guard-smoke.mjs"
+    "validation:speech-duration-guard": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-speech-duration-guard-smoke.mjs",
+    "validation:clip-salvage-store": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-clip-salvage-store-smoke.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
