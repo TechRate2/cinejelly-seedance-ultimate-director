@@ -12,6 +12,7 @@
 
 import { readFileSync } from "node:fs";
 import { StoryArchitect } from "../dist/agents/story-architect.js";
+import { MIN_CLIP_DURATION_SECONDS } from "../dist/config/seedance-settings.js";
 
 const checks = [];
 const check = (name, pass, detail) => checks.push({ name, pass: Boolean(pass), ...(detail !== undefined ? { detail: String(detail) } : {}) });
@@ -54,8 +55,24 @@ const p1 = await plan(under);
 const b1 = p1.scenes.flatMap((s) => s.beats);
 const talking1 = b1.filter((b) => b.spokenLine);
 check("underfilled_triggers_continuation", under.calls() === 2, `llmCalls=${under.calls()}`);
-check("talking_beats_survive_capacity", talking1.length >= 7, `talking=${talking1.length}`);
-check("talking_beat_floor_is_2s", Math.min(...talking1.map((b) => b.durationSeconds)) <= 2, `min=${Math.min(...talking1.map((b) => b.durationSeconds))}`);
+// An 18s order fits FOUR spoken beats, not seven. The floor is the renderer's own clip floor
+// (MIN_CLIP_DURATION_SECONDS = 4), so 18 / 4 = 4. These two checks previously asserted a 2s floor and
+// seven surviving beats, which is what a security/cost audit traced to a real double charge: nine 2s
+// beats were planned, each rendered as a 4s clip, and an 18s order produced 36s of video at full
+// price before the delivery gate refused it for running double the ordered length. The plan was
+// promising a runtime the clips could not deliver — the exact thing the comment below claims the
+// capacity cap exists to prevent.
+check("talking_beats_fill_the_real_capacity", talking1.length === 4, `talking=${talking1.length}`);
+check("talking_beat_floor_matches_the_renderer_clip_floor",
+  Math.min(...talking1.map((b) => b.durationSeconds)) >= MIN_CLIP_DURATION_SECONDS,
+  `min=${Math.min(...talking1.map((b) => b.durationSeconds))} floor=${MIN_CLIP_DURATION_SECONDS}`);
+// The planned total must be renderable as-is: every beat at or above the clip floor, and the sum
+// within the ordered runtime. This is the property the two checks above exist to protect.
+check("planned_beats_are_all_renderable",
+  talking1.every((beat) => beat.durationSeconds >= MIN_CLIP_DURATION_SECONDS));
+check("planned_total_does_not_exceed_the_order",
+  talking1.reduce((sum, beat) => sum + beat.durationSeconds, 0) <= 18,
+  `total=${talking1.reduce((sum, beat) => sum + beat.durationSeconds, 0)}s`);
 check("durations_sum_to_target", Math.abs(b1.reduce((a, b) => a + b.durationSeconds, 0) - 18) <= 2, `sum=${b1.reduce((a, b) => a + b.durationSeconds, 0)}`);
 
 // --- 2. Already-filled talking plan (7 beats × ~12 words ≈ 21s of speech > 18) does NOT trigger a
@@ -63,9 +80,12 @@ check("durations_sum_to_target", Math.abs(b1.reduce((a, b) => a + b.durationSeco
 const filled = fakeLlm(Array.from({ length: 7 }, () => FULL_LINE), 5);
 const p2 = await plan(filled);
 check("filled_plan_no_continuation", filled.calls() === 1, `llmCalls=${filled.calls()}`);
-// 13-word lines = 3s of speech each; an 18s order fits 6, so the capacity cap correctly drops the 7th
-// rather than promising a runtime the clips cannot deliver.
-check("filled_plan_keeps_beats_that_fit", p2.scenes.flatMap((s) => s.beats).filter((b) => b.spokenLine).length >= 6, `beats=${p2.scenes.flatMap((s) => s.beats).length}`);
+// A beat cannot be rendered shorter than the clip floor, so an 18s order fits 18/4 = 4 spoken beats.
+// The capacity cap drops the rest rather than promising a runtime the clips cannot deliver — which is
+// what it was doing when it sized beats at 3s against a 4s renderer.
+check("filled_plan_keeps_only_beats_that_fit",
+  p2.scenes.flatMap((s) => s.beats).filter((b) => b.spokenLine).length === 4,
+  `beats=${p2.scenes.flatMap((s) => s.beats).filter((b) => b.spokenLine).length}`);
 
 // --- 3. Non-talking (no register) plan is UNCHANGED: 18s still caps at 4 beats, 4s floor, no talking call.
 const broll = fakeLlm([undefined, undefined, undefined, undefined, undefined, undefined], 5, undefined);

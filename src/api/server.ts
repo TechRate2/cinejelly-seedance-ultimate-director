@@ -2046,6 +2046,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           const uploadTempPath = join(uploadsDir, `${storedFileName}.part`);
           await writeFile(uploadTempPath, body);
           await rename(uploadTempPath, join(uploadsDir, storedFileName));
+          // Owner sidecar, same pattern as a redub's owner.json. The download route below needs it:
+          // the stored name is random hex and therefore hard to guess, but an unguessable URL is not
+          // access control — the handle is returned to the client, travels in plan payloads, and
+          // anything that leaks one would hand over another customer's photo or source video.
+          if (uploaderId) {
+            await writeFile(join(uploadsDir, `${storedFileName}.owner.json`), JSON.stringify({ userId: uploaderId }), "utf8");
+          }
           recordUpload(uploaderId, body.length);
         } catch (uploadError) {
           // Never leak a raw filesystem error (which carries absolute local paths) to a customer.
@@ -2090,6 +2097,26 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           return;
         }
         if (!uploadedStat.isFile()) {
+          sendJson(response, 404, { error: "Không tìm thấy tệp đã tải lên — hãy tải lại ảnh/video. (Uploaded file not found.)" }, requestContext);
+          return;
+        }
+        // OWNERSHIP. This route previously checked only the name pattern and path containment, so any
+        // logged-in customer holding a stored name could download another customer's uploaded face
+        // photo, product shot or source video. Fail closed: no owner record means no download, which
+        // is the safe direction for a file whose provenance we cannot establish.
+        let uploadOwner: string | undefined;
+        try {
+          const ownerRaw = JSON.parse(readFileSync(`${uploadedPath}.owner.json`, "utf8")) as { userId?: unknown };
+          uploadOwner = typeof ownerRaw.userId === "string" ? ownerRaw.userId : undefined;
+        } catch {
+          uploadOwner = undefined;
+        }
+        const uploadPrincipal = authDecision.principal;
+        const uploadRequesterIsOperator = uploadPrincipal !== undefined && uploadPrincipal.kind !== "user";
+        const uploadRequesterIsOwner =
+          uploadPrincipal?.kind === "user" && Boolean(uploadPrincipal.userId) &&
+          uploadPrincipal.userId === uploadOwner;
+        if (!uploadRequesterIsOwner && !uploadRequesterIsOperator) {
           sendJson(response, 404, { error: "Không tìm thấy tệp đã tải lên — hãy tải lại ảnh/video. (Uploaded file not found.)" }, requestContext);
           return;
         }

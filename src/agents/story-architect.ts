@@ -15,6 +15,7 @@ import { CustomerActionableError } from "../core/customer-actionable-error.js";
 import { explicitStyleTagRegister, isStyleRegister, registerForCreativeMode } from "../core/register-grammar.js";
 import { capToSpeakableWords, countSpeechUnits, TALKING_WORDS_PER_SECOND } from "../core/duration-scripting.js";
 import { MAX_CLIP_SECONDS } from "../core/chunking.js";
+import { MIN_CLIP_DURATION_SECONDS } from "../config/seedance-settings.js";
 import type { StyleDna, StyleRegister } from "../types/prompt.js";
 
 /**
@@ -113,7 +114,19 @@ const MIN_BEAT_DURATION_SECONDS = 4;
 // video at 4 beats (floor(18/4)) and it can never hold enough short lines to fill the runtime
 // (paid-acceptance forensics 2026-07-26: 18s ordered rendered 7.3s). VN ElevenLabs measured ≈4
 // words/sec.
-const TALKING_MIN_BEAT_DURATION_SECONDS = 2;
+/**
+ * A spoken beat cannot be planned shorter than a clip can physically be rendered.
+ *
+ * This was 2 seconds while the provider's floor is 4 (MIN_CLIP_DURATION_SECONDS), and the gap was
+ * paid for twice over: an 18-second order planned as nine 2-second talking beats rendered as nine
+ * FOUR-second clips — 36 seconds of video at full price — and the delivery gate then refused it for
+ * running double the ordered length. The customer paid twice and received nothing.
+ *
+ * Taken from the renderer's own constant rather than restated, so the two can never drift again. The
+ * real consequence is honest: an 18-second order fits at most four spoken beats, because that is what
+ * the renderer can actually produce. Planning nine was always fiction.
+ */
+const TALKING_MIN_BEAT_DURATION_SECONDS = MIN_CLIP_DURATION_SECONDS;
 // Not a whitespace split: Chinese and Japanese are written without spaces, so a whole sentence
 // counted as one word and every CJK talking plan was scheduled at a fraction of its real length.
 const countWords = (text: string): number => countSpeechUnits(text);
@@ -1006,13 +1019,14 @@ export class StoryArchitect {
     }
     // Rounded to whole seconds: normalizeDurations distributes the remaining time in integers, so a
     // fractional floor made the per-beat sum miss the ordered duration (a 12s single clip landed at
-    // 12.5s). Never below the 2s talking floor, never above the 15s provider clip ceiling.
+    // 12.5s). Never below the renderer's clip floor, never above the provider clip ceiling.
     const speechSeconds = Math.round(countWords(line) / TALKING_WORDS_PER_SECOND);
     return Math.min(15, Math.max(TALKING_MIN_BEAT_DURATION_SECONDS, speechSeconds));
   }
 
   private limitBeatsToDurationCapacity(scenes: readonly ScenePlan[], intake: IntakeResult, register?: StyleRegister): readonly ScenePlan[] {
-    // Cap by the SUM of each beat's ACTUAL per-beat floor (2s spoken / 4s b-roll), not a single
+    // Cap by the SUM of each beat's ACTUAL per-beat floor (4s, the renderer's clip floor, for both
+    // spoken and b-roll beats), not a single
     // register-wide floor × count (adversarial-audit F1): a MIXED talking plan (spoken beats + silent
     // b-roll cutaways) counted every beat at the 2s talking floor but normalizeDurations floors the
     // silent ones at 4s, so the sum blew past the target (5 spoken + 4 b-roll = 26s on an 18s order),

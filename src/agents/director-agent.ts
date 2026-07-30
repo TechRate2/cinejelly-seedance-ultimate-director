@@ -125,11 +125,25 @@ import { ReferenceVisionAnalyst, reconcileReferenceRoles } from "./reference-vis
  * ffprobe being present: every caller treats a missing prober as "measurement unavailable".
  */
 /**
- * Turnaround views generated for every recurring character. The front view stays the primary
- * identity anchor; the other two exist so a shot that turns the character has real evidence to
- * follow instead of the video model inventing a profile.
+ * Turnaround views generated per recurring character.
+ *
+ * FRONT ONLY, deliberately — and this is a correction of a change made earlier in the same session.
+ * Turning the three-view sheet on looked free: `planCastPortraitRequests` had supported
+ * front/three-quarter/side since it was written and was simply never passed the parameter. But the
+ * CONSUMER only ever reads the primary view: `bindCastIdentityReferences` filters to
+ * `isPrimary !== false` (keyframe-first-planner.ts:253) and the verifier loop skips non-primary
+ * results, so the profile and three-quarter images were generated, billed, and thrown away. Three
+ * images per character, one used.
+ *
+ * Using them properly means threading the extra URLs into the keyframe prompt's reference bindings so
+ * the video model actually has profile evidence when a shot turns the character — which is the real
+ * quality win and the reason ViMax renders a turnaround sheet at all. That is a designed change with
+ * its own verification, not a parameter flip, so it is left undone rather than half-shipped.
+ *
+ * Until then the honest setting is one image per character: a feature that costs the customer money
+ * and delivers nothing must not stay switched on.
  */
-const CHARACTER_PORTRAIT_VIEWS: readonly PortraitView[] = ["front", "three_quarter", "side"];
+const CHARACTER_PORTRAIT_VIEWS: readonly PortraitView[] = ["front"];
 
 /**
  * True when the provider gave back nothing usable — a failed/canceled prediction, or a "succeeded"
