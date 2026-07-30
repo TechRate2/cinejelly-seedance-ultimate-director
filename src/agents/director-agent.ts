@@ -956,17 +956,44 @@ export class DirectorAgent {
       compiledPrompts[index] = renderedShot.compiledPrompt;
     }
     this.reportStageProgress("inspect", "running", "Inspecting rendered shots.");
-    const blockingRenderReports = renderedShots.filter((renderedShot) =>
-      this.needsRenderRepair(renderedShot.renderInspection)
+    // WHAT MAY KILL A FULLY-PAID JOB, AND WHAT MAY NOT.
+    //
+    // Every clip reaching this point has already been rendered and billed, and its repair budget is
+    // spent. The question is no longer "can this be improved" — it is "is this deliverable". Those
+    // are different questions and the inspector answers them with different severities:
+    //   rerender / block -> the clip is genuinely unusable (no output, wrong duration, broken frame)
+    //   repair           -> it could be better
+    //
+    // This gate used to refuse on ALL THREE, so a single "could be better" verdict on shot 7 of 10
+    // destroyed the other nine finished clips and the customer got nothing after paying for
+    // everything. That is the worse outcome by every measure: they would rather have the video with
+    // one imperfect shot, and they can always run it again if they disagree.
+    //
+    // So only unusable clips block. A surviving "repair" verdict is recorded as a warning, travels
+    // into the delivered evidence, and the video ships. The delivery gate still has the final say on
+    // the assembled file — runtime, resolution, missing streams — so a genuinely broken deliverable
+    // is still caught downstream.
+    const unusableRenderReports = renderedShots.filter((renderedShot) =>
+      this.needsTestTakeBlock(renderedShot.renderInspection)
     );
-    if (blockingRenderReports.length > 0) {
+    if (unusableRenderReports.length > 0) {
       this.reportStageProgress("inspect", "blocked", "Rendered shot inspection blocked delivery.", {
-        blockingInspectionCount: blockingRenderReports.length
+        blockingInspectionCount: unusableRenderReports.length
       });
-      throw new Error(this.describeRenderBlock(blockingRenderReports));
+      throw new Error(this.describeRenderBlock(unusableRenderReports));
+    }
+    const imperfectRenderReports = renderedShots.filter(
+      (renderedShot) => renderedShot.renderInspection.status === "repair"
+    );
+    if (imperfectRenderReports.length > 0) {
+      this.reportStageProgress("inspect", "warn", "Delivering with imperfect shots after the repair budget was spent.", {
+        imperfectShotCount: imperfectRenderReports.length,
+        imperfectShotIds: imperfectRenderReports.map((shot) => shot.compiledPrompt.shotId).join(",")
+      });
     }
     this.reportStageProgress("inspect", this.inspectionStageStatus(renderedShots), "Rendered shot inspection completed.", {
-      warningInspectionCount: renderedShots.filter((shot) => shot.renderInspection.status === "warn").length
+      warningInspectionCount: renderedShots.filter((shot) => shot.renderInspection.status === "warn").length,
+      imperfectShotCount: imperfectRenderReports.length
     });
     this.reportStageProgress("repair", this.repairStageStatus(renderedShots), "Repair stage completed or skipped.", {
       repairAttemptCount: renderedShots.reduce((sum, shot) => sum + shot.repairAttemptCount, 0)

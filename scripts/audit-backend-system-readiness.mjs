@@ -238,6 +238,7 @@ const auditedValidationCommandNames = [
   "validation:render-job-review-lifecycle",
   "validation:render-request",
   "validation:render-request-contract",
+  "validation:render-failure-resilience",
   "validation:render-scheduler",
   "validation:render-settlement-race",
   "validation:report-contracts",
