@@ -134,8 +134,12 @@ export class ShotPlanner {
   private withVideoArcRoles(shots: readonly ShotContract[]): readonly ShotContract[] {
     const arcRoles = assignVideoArcRoles(shots.length);
     const creativeMode = this.creativeModeFor(shots);
+    // The register the analyst decided travels on the shots; pass it so framing stays correct even
+    // when the creativeMode metadata key does not survive the trip to the renderer.
+    const framingRegister = shots.find((shot) => shot.styleDna?.register)?.styleDna?.register;
     const framing = planShotFramingSequence({
       arcRoles: arcRoles as readonly ArcRoleName[],
+      ...(framingRegister ? { register: framingRegister } : {}),
       // A shot carrying a verbatim spokenLine gets avatar/lip-sync routed downstream, so its
       // framing must keep the face toward camera — the position planner needs to know which
       // beats those are before it spends any coverage variety on them.

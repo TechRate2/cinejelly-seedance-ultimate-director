@@ -6,7 +6,10 @@ CineJelly Seedance Ultimate Director is a commercial production system for one-i
 
 ## Mandatory Workflow
 
-1. Before editing, read `docs/PROJECT_CONTEXT.md` and the smallest directly relevant design spec.
+1. Before editing, read [`BAN-DO-DU-AN.md`](BAN-DO-DU-AN.md) and run `npm test`. Open a design spec
+   under `docs/` only afterwards, and treat it as historical intent rather than a description of the
+   code — most were frozen on 2026-07-02/04 while the code moved on. When a spec and the code
+   disagree, the code wins and the spec is the bug.
 2. Do not create test, mock, demo, sample, fixture, or example files.
 3. Do not commit secrets, `.env` files, provider keys, raw tokens, private keys, local credentials, or generated customer media.
 4. Keep Atlas Cloud as the default LLM and Seedance provider unless the user explicitly changes the provider plan.

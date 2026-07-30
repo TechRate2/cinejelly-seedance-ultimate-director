@@ -1,4 +1,24 @@
 # Short Pipeline Agentic Design
+> ⚠️ **TÀI LIỆU THIẾT KẾ — KHÔNG PHẢI MÔ TẢ CODE HIỆN TẠI.**
+> Cập nhật lần cuối: **2026-07-02**. Từ đó tới nay mã nguồn đã đổi rất nhiều.
+> Đọc [`BAN-DO-DU-AN.md`](../BAN-DO-DU-AN.md) để biết dự án HIỆN TẠI ra sao.
+> Khi tài liệu này mâu thuẫn với code, **code đúng** — tài liệu là cái sai.
+
+> ### ⛔ TÍNH NĂNG ĐÃ GỠ — đọc trước phần còn lại
+>
+> Tài liệu này mô tả **quét trang sản phẩm từ URL** (`ProductUrlResearcher`,
+> `POST /v1/short-pipeline/product-url-plan`, `npm run validation:product-url-extraction`) như đang
+> chạy. **Không còn nữa.** Chủ dự án gỡ ngày **2026-07-23**: quét trang thương mại điện tử phức tạp,
+> dễ vỡ và thường xuyên bị chặn bot.
+>
+> Hiện tại: đường đó trả **HTTP 410** (`src/api/server.ts`), lệnh npm **không tồn tại**, lược đồ báo
+> cáo đã xoá. `ProductUrlResearcher` chỉ còn phục vụ **thông tin sản phẩm do người gọi tự cung cấp**.
+> Khách mô tả sản phẩm bằng lời hoặc tải ảnh/video mẫu lên — hai đường đó có cùng sức mạnh lập kế
+> hoạch mà không có rủi ro tải trang.
+>
+> Ghi ở đây vì [`UPSTREAM_CONTEXT_ROUTING.md`](UPSTREAM_CONTEXT_ROUTING.md) chỉ mọi AI làm video ngắn
+> đến đúng file này.
+
 
 ## Product Position
 

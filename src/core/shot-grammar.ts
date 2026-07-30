@@ -120,7 +120,11 @@ const SHOT_POSITION_DIRECTIVES: Record<ShotPosition, string> = {
   front_view: "camera in front of the subject",
   back_view: "camera behind the subject",
   side_view: "camera to the subject's side in profile",
-  over_the_shoulder: "camera over one subject's shoulder onto the other subject",
+  // Worded to hold for ONE subject as well as two. The old phrasing ("over one subject's shoulder
+  // onto the other subject") assumed a second person, but this position is assigned by rotation to
+  // whatever shot lands on it — including single-subject demo and explainer shots, where it told the
+  // model to frame a second person who does not exist in the scene.
+  over_the_shoulder: "camera behind and just past the subject's shoulder, looking where they are looking (onto the other person when the scene has one, otherwise onto what they are doing)",
   overhead_view: "camera directly above the scene",
   point_of_view: "camera as the subject's own eyes"
 };
@@ -303,17 +307,36 @@ export function planShotFramingSequence(input: {
    * variety is therefore only ever spent on non-speaking beats.
    */
   readonly speakingBeats?: readonly boolean[];
+  /**
+   * The style register the analyst decided, used when no creativeMode palette matches.
+   *
+   * The planner keyed on `creativeMode` alone, so a phone-shot brief whose mode metadata did not
+   * survive the trip to the renderer fell through to the CREWED default and was handed crane moves,
+   * orbits, long shots and a camera behind the subject — for a video the customer is holding at
+   * arm's length. The register is decided upstream and travels on the shot, so it is the honest
+   * fallback: a brief can lose a metadata key, but it cannot stop being a phone video.
+   */
+  readonly register?: "professional_cinematic" | "natural_phone_kol";
 }): readonly ShotGrammar[] {
+  const phoneRegister = input.register === "natural_phone_kol";
   const palette =
-    (input.creativeMode && MODE_SHOT_TYPE_PALETTE[input.creativeMode]) || DEFAULT_SHOT_TYPE_PALETTE;
+    (input.creativeMode && MODE_SHOT_TYPE_PALETTE[input.creativeMode]) ||
+    (phoneRegister ? MODE_SHOT_TYPE_PALETTE.ugc_review : undefined) ||
+    DEFAULT_SHOT_TYPE_PALETTE;
   const positionPalette =
-    (input.creativeMode && MODE_POSITION_PALETTE[input.creativeMode]) || POSITION_CYCLE;
+    (input.creativeMode && MODE_POSITION_PALETTE[input.creativeMode]) ||
+    (phoneRegister ? MODE_POSITION_PALETTE.ugc_review : undefined) ||
+    POSITION_CYCLE;
   const result: ShotGrammar[] = [];
   let paletteCursor = 0;
   let motionCursor = 0;
   // Size-appropriate dynamic camera moves for the development beats. Wide framings roam through
   // space (track/truck/pan/orbit/crane); tight framings press in (push/zoom/pedestal/handheld).
-  const wideMotions: readonly CameraMotion[] = ["tracking", "truck_left", "pan_right", "orbit", "crane", "truck_right", "pan_left"];
+  // A phone in someone's hand cannot crane or orbit. Those moves are the loudest "this was made by a
+  // machine" tell in the format that sells most, so the phone register gets handheld-plausible moves.
+  const wideMotions: readonly CameraMotion[] = phoneRegister
+    ? ["handheld", "pan_right", "truck_left", "pan_left", "truck_right"]
+    : ["tracking", "truck_left", "pan_right", "orbit", "crane", "truck_right", "pan_left"];
   const tightMotions: readonly CameraMotion[] = ["push_in", "zoom_in", "handheld", "pedestal_up", "tilt_up", "zoom_out"];
   for (let index = 0; index < input.arcRoles.length; index += 1) {
     const arcRole = input.arcRoles[index] ?? "development";
