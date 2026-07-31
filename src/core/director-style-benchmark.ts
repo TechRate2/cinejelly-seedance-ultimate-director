@@ -25,6 +25,12 @@ import type {
   DirectorStyleBenchmarkSeverity,
   DirectorStyleBenchmarkStatus
 } from "../types/director-style-benchmark.js";
+import {
+  DIRECTOR_STYLE_BENCHMARK_SOURCE_PATTERN_IDS,
+  internalSourcePatternOrigins
+} from "./private-source-pattern-registry.js";
+
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(DIRECTOR_STYLE_BENCHMARK_SOURCE_PATTERN_IDS);
 
 const ARTIFACT_KINDS = {
   runSummary: "run_summary",
@@ -145,7 +151,7 @@ export class DirectorStyleBenchmarkEvaluator {
       noSpend: true,
       networkCallsMade: false,
       providerCallsMade: false,
-      sourcePatternOrigins: ["jiaminchen-1031/DirectorBench", "vericontext/vibeframe", ...input.facts.sourcePatternOrigins]
+      sourcePatternOrigins: [...SOURCE_PATTERN_ORIGINS, ...input.facts.sourcePatternOrigins]
         .filter((value, index, values) => values.indexOf(value) === index)
         .sort((left, right) => left.localeCompare(right)),
       checkedInputs: {

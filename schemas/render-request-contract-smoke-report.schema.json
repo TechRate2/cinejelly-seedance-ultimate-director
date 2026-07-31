@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/render-request-contract-smoke-report.schema.json",
+  "title": "CineJelly Render Request Contract Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "checkedInputs",
+    "scenarios",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.render-request-contract-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaPath",
+        "outputPath",
+        "fixtureDir",
+        "validRequestPath",
+        "flatReferenceRequestPath",
+        "secretQueryRequestPath",
+        "malformedSourceVideoRequestPath",
+        "mismatchedSourceLabelRequestPath",
+        "emptySourceVideoRequestPath",
+        "invalidSourceVideoMediaMetricsRequestPath",
+        "invalidSeedanceCapabilityRequestPath"
+      ],
+      "properties": {
+        "schemaPath": { "const": "schemas/render-request.schema.json" },
+        "outputPath": { "type": "string", "minLength": 1 },
+        "fixtureDir": { "type": "string", "minLength": 1 },
+        "validRequestPath": { "type": "string", "minLength": 1 },
+        "flatReferenceRequestPath": { "type": "string", "minLength": 1 },
+        "secretQueryRequestPath": { "type": "string", "minLength": 1 },
+        "malformedSourceVideoRequestPath": { "type": "string", "minLength": 1 },
+        "mismatchedSourceLabelRequestPath": { "type": "string", "minLength": 1 },
+        "emptySourceVideoRequestPath": { "type": "string", "minLength": 1 },
+        "invalidSourceVideoMediaMetricsRequestPath": { "type": "string", "minLength": 1 },
+        "invalidSeedanceCapabilityRequestPath": { "type": "string", "minLength": 1 }
+      }
+    },
+    "scenarios": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "validProviderReference1440",
+        "invalidFlatReference",
+        "invalidSecretQueryReference",
+        "invalidSourceVideoShape",
+        "invalidSourceVideoLabel",
+        "invalidEmptySourceVideoAnalysis",
+        "invalidSourceVideoMediaMetrics",
+        "invalidSeedanceCapabilitySettings"
+      ],
+      "properties": {
+        "validProviderReference1440": { "$ref": "#/$defs/scenario" },
+        "invalidFlatReference": { "$ref": "#/$defs/scenario" },
+        "invalidSecretQueryReference": { "$ref": "#/$defs/scenario" },
+        "invalidSourceVideoShape": { "$ref": "#/$defs/scenario" },
+        "invalidSourceVideoLabel": { "$ref": "#/$defs/scenario" },
+        "invalidEmptySourceVideoAnalysis": { "$ref": "#/$defs/scenario" },
+        "invalidSourceVideoMediaMetrics": { "$ref": "#/$defs/scenario" },
+        "invalidSeedanceCapabilitySettings": { "$ref": "#/$defs/scenario" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "renderRequestContractSmokePass",
+        "canUseAsNoSpendBackendEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "renderRequestContractSmokePass": { "type": "boolean" },
+        "canUseAsNoSpendBackendEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaStatus",
+        "schemaExitCode",
+        "schemaReportPath",
+        "admissionStatus",
+        "normalizedReferenceCount",
+        "sourceVideoAnalysisPresent",
+        "semanticVisualInspectionEnabled",
+        "issueCodes"
+      ],
+      "properties": {
+        "schemaStatus": { "enum": ["pass", "fail"] },
+        "schemaExitCode": { "type": "integer" },
+        "schemaReportPath": { "type": "string", "minLength": 1 },
+        "admissionStatus": { "enum": ["pass", "fail"] },
+        "normalizedReferenceCount": { "type": "integer", "minimum": 0 },
+        "sourceVideoAnalysisPresent": { "type": "boolean" },
+        "sourceVideoMediaMetricsPresent": { "type": "boolean" },
+        "semanticVisualInspectionEnabled": { "type": "boolean" },
+        "issueCodes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "firstIssueMessage": { "type": "string", "minLength": 1 }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

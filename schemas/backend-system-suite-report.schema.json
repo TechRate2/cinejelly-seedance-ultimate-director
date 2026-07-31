@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/backend-system-suite-report.schema.json",
+  "title": "CineJelly Backend System Suite Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "localHttpCallsMade",
+    "checkedInputs",
+    "summary",
+    "commands",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.backend-system-suite.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "localHttpCallsMade": { "type": "boolean" },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "commandCount", "timeoutMs", "tailBytes"],
+      "properties": {
+        "outputPath": { "type": "string", "minLength": 1 },
+        "commandCount": { "type": "integer", "minimum": 1 },
+        "timeoutMs": { "type": "integer", "minimum": 5000, "maximum": 900000 },
+        "tailBytes": { "type": "integer", "minimum": 200, "maximum": 200000 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startedAt",
+        "finishedAt",
+        "durationMs",
+        "commandCount",
+        "passedCommandCount",
+        "failedCommandCount",
+        "backendReadinessStatus",
+        "backendReadinessCodeIssueCount",
+        "backendReadinessExternalEvidenceBlockerCount",
+        "reportContractsStatus",
+        "reportContractsFailedCount"
+      ],
+      "properties": {
+        "startedAt": { "type": "string", "format": "date-time" },
+        "finishedAt": { "type": "string", "format": "date-time" },
+        "durationMs": { "type": "integer", "minimum": 0 },
+        "commandCount": { "type": "integer", "minimum": 1 },
+        "passedCommandCount": { "type": "integer", "minimum": 0 },
+        "failedCommandCount": { "type": "integer", "minimum": 0 },
+        "backendReadinessStatus": { "type": "string", "minLength": 1 },
+        "backendReadinessCodeIssueCount": { "type": "integer", "minimum": 0 },
+        "backendReadinessExternalEvidenceBlockerCount": { "type": "integer", "minimum": 0 },
+        "reportContractsStatus": { "type": "string", "minLength": 1 },
+        "reportContractsFailedCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/commandRun" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "backendSystemSuitePass",
+        "canUseAsNoSpendBackendEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "backendSystemSuitePass": { "type": "boolean" },
+        "canUseAsNoSpendBackendEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "commandRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "command",
+        "expectedExitCodes",
+        "exitCode",
+        "status",
+        "timedOut",
+        "durationMs",
+        "localHttpCallsMade",
+        "stdoutTail",
+        "stderrTail"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "command": { "type": "string", "minLength": 1 },
+        "expectedExitCodes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "integer" }
+        },
+        "exitCode": { "type": "integer" },
+        "status": { "enum": ["pass", "fail"] },
+        "timedOut": { "type": "boolean" },
+        "durationMs": { "type": "integer", "minimum": 0 },
+        "reportPath": { "type": "string", "minLength": 1 },
+        "reportSchemaVersion": { "type": "string", "minLength": 1 },
+        "reportStatus": { "type": "string", "minLength": 1 },
+        "localHttpCallsMade": { "type": "boolean" },
+        "stdoutTail": { "type": "string" },
+        "stderrTail": { "type": "string" }
+      }
+    }
+  }
+}

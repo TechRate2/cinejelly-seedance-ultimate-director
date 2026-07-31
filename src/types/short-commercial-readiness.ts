@@ -9,6 +9,7 @@ export type ShortCommercialReadinessCheckCode =
   | "agent_graph"
   | "human_review"
   | "reference_originality"
+  | "media_references"
   | "channel_style_memory"
   | "outcome_memory"
   | "crawler_policy"

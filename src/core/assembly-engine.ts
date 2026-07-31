@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path";
 import type { AssembledDeliverable, AssemblyClip, AssemblyInput } from "../types/assembly.js";
 import { DEFAULT_POSTPRODUCTION_SETTINGS, PostproductionEngine } from "./postproduction-engine.js";
+import { ssrfSafeFetch } from "../utils/ssrf-guard.js";
 import { MediaInspector } from "./media-inspector.js";
 import { CaptionEngine } from "./caption-engine.js";
 import { AudioMixEngine, DEFAULT_AUDIO_MIX_OPTIONS } from "./audio-mix-engine.js";
@@ -20,6 +21,15 @@ import { runProcess } from "../utils/process.js";
 
 const DEFAULT_MAX_RENDERED_CLIP_BYTES = 2 * 1024 * 1024 * 1024;
 const NON_NEGATIVE_INTEGER_PATTERN = /^(?:0|[1-9]\d*)$/;
+const MAX_TRANSITION_INTENT_CHARS = 360;
+
+export function transitionIntentsForAssemblyClips(clips: readonly AssemblyClip[]): readonly string[] {
+  const intents: string[] = [];
+  for (let index = 0; index < clips.length - 1; index += 1) {
+    intents.push(mergedBoundaryTransitionIntent(clips[index], clips[index + 1]) ?? "");
+  }
+  return intents;
+}
 
 export class AssemblyEngine {
   private readonly postproductionEngine: PostproductionEngine;
@@ -64,15 +74,28 @@ export class AssemblyEngine {
     const localClipPaths = await Promise.all(
       orderedClips.map((clip) => this.materializeClip(input.projectId, input.workDirectory, clip, signal))
     );
+    // Working copies and intermediate renders are deleted on every exit path (success or
+    // error); the final deliverable and caption sidecar are never in this list.
+    const intermediateCleanupPaths: string[] = [...localClipPaths];
+    // The stage that writes input.outputPath depends on which stages are enabled, so on some
+    // combinations the last stage to run writes an intermediate and THAT file is the deliverable.
+    // Cleanup must protect whatever we actually return, not only the path that was requested,
+    // or the caller receives a record pointing at a file this method just deleted.
+    let deliveredPath = input.outputPath;
+    try {
     const concatListPath = join(input.workDirectory, `${input.projectId}_concat.txt`);
+    intermediateCleanupPaths.push(concatListPath);
     const postproductionSettings = input.postproductionSettings ?? DEFAULT_POSTPRODUCTION_SETTINGS;
     const audioMixOptions = input.audioMixOptions ?? {
       ...DEFAULT_AUDIO_MIX_OPTIONS,
       enabled: Boolean(input.audioTracks && input.audioTracks.length > 0)
     };
-    const transitionSettings = input.transitionSettings ?? {
+    const transitionSettings = {
       ...DEFAULT_TRANSITION_SETTINGS,
-      enabled: localClipPaths.length > 1
+      enabled: localClipPaths.length > 1,
+      ...(postproductionSettings.targetHeight ? { targetHeight: postproductionSettings.targetHeight } : {}),
+      ...(postproductionSettings.targetRatio ? { targetRatio: postproductionSettings.targetRatio } : {}),
+      ...(input.transitionSettings ?? {})
     };
     const captionOptions = input.captionOptions ?? { enabled: false, burnIn: false };
     const needsTransitions = localClipPaths.length > 1 && transitionSettings.enabled;
@@ -81,6 +104,9 @@ export class AssemblyEngine {
     const concatOutputPath = postproductionSettings.enabled || needsCaptionBurn || needsAudioMix || needsTransitions
       ? join(input.workDirectory, `${input.projectId}_assembled_raw.mp4`)
       : input.outputPath;
+    if (concatOutputPath !== input.outputPath) {
+      intermediateCleanupPaths.push(concatOutputPath);
+    }
     await writeFileEnsuringDirectory(concatListPath, this.toConcatList(localClipPaths));
 
     const transition = needsTransitions
@@ -88,12 +114,18 @@ export class AssemblyEngine {
           {
             inputPaths: localClipPaths,
             outputPath: concatOutputPath,
-            settings: transitionSettings
+            settings: transitionSettings,
+            transitionIntents: transitionIntentsForAssemblyClips(orderedClips)
           },
           signal
         )
       : undefined;
     if (!transition) {
+      if (localClipPaths.length > 1) {
+        // Stream-copy concat silently corrupts output when clips differ in resolution or
+        // audio presence; verify homogeneity up front and fail with a fix instruction.
+        await this.assertConcatHomogeneity(localClipPaths, signal);
+      }
       await runProcess(
         readMediaToolCommand("ffmpeg"),
         [
@@ -117,6 +149,9 @@ export class AssemblyEngine {
         ? join(input.workDirectory, `${input.projectId}_polished.mp4`)
         : input.outputPath
       : concatOutputPath;
+    if (postproductionOutputPath !== input.outputPath) {
+      intermediateCleanupPaths.push(postproductionOutputPath);
+    }
     const postproduction = postproductionSettings.enabled
       ? await this.postproductionEngine.polish(
           {
@@ -133,7 +168,10 @@ export class AssemblyEngine {
         ? join(input.workDirectory, `${input.projectId}_captioned.mp4`)
         : input.outputPath
       : videoAfterPostproduction;
-    const captions = input.captionCues && captionOptions.enabled
+    if (captionedOutputPath !== input.outputPath) {
+      intermediateCleanupPaths.push(captionedOutputPath);
+    }
+    const captions = input.captionCues && input.captionCues.length > 0 && captionOptions.enabled
       ? await this.captionEngine.render(
           {
             projectId: input.projectId,
@@ -164,6 +202,7 @@ export class AssemblyEngine {
         )
       : undefined;
     const outputPath = audioMix?.outputPath ?? videoAfterCaptions;
+    deliveredPath = outputPath;
     const inspection = this.mediaInspector.inspectDelivery(await this.mediaInspector.probe(outputPath, signal));
     const frameSamples = input.frameSamplingOptions
       ? await this.mediaInspector.sampleFrames(outputPath, input.frameSamplingOptions, signal)
@@ -185,6 +224,52 @@ export class AssemblyEngine {
       inspection,
       ...(frameSamples && frameSamples.length > 0 ? { frameSamples } : {})
     };
+    } finally {
+      await this.cleanupIntermediatePaths(intermediateCleanupPaths, [input.outputPath, deliveredPath]);
+    }
+  }
+
+  /** Best-effort removal of working copies/intermediates; never touches the deliverable. */
+  private async cleanupIntermediatePaths(paths: readonly string[], keepPaths: readonly string[]): Promise<void> {
+    const keep = new Set(keepPaths.map((path) => resolve(path)));
+    const unique = [...new Set(paths.map((path) => resolve(path)))].filter((path) => !keep.has(path));
+    for (const path of unique) {
+      try {
+        await rm(path, { force: true });
+      } catch {
+        // Cleanup is best-effort; a locked temp file must not fail the assembly result.
+      }
+    }
+  }
+
+  /**
+   * Stream-copy concat requires identical stream layouts. Reject mixed clips with a clear
+   * fix (enable transitions, which re-encode) instead of producing a corrupt deliverable.
+   */
+  private async assertConcatHomogeneity(paths: readonly string[], signal?: AbortSignal): Promise<void> {
+    const profiles: { readonly width?: number; readonly height?: number; readonly hasAudio: boolean }[] = [];
+    for (const path of paths) {
+      const metadata = await this.mediaInspector.probe(path, signal);
+      const video = metadata.streams.find((stream) => stream.type === "video");
+      profiles.push({
+        ...(video?.width !== undefined ? { width: video.width } : {}),
+        ...(video?.height !== undefined ? { height: video.height } : {}),
+        hasAudio: metadata.streams.some((stream) => stream.type === "audio")
+      });
+    }
+    const first = profiles[0];
+    if (!first) {
+      return;
+    }
+    const mismatched = profiles.some(
+      (profile) =>
+        profile.width !== first.width || profile.height !== first.height || profile.hasAudio !== first.hasAudio
+    );
+    if (mismatched) {
+      throw new Error(
+        "Stream-copy concat needs identical clips (same resolution and audio presence across all clips). Enable transitionSettings so mixed clips are re-encoded consistently."
+      );
+    }
   }
 
   private async materializeClip(
@@ -217,7 +302,8 @@ export class AssemblyEngine {
     targetPath: string,
     signal?: AbortSignal
   ): Promise<void> {
-    const response = await fetch(sourceUrl, signal ? { signal } : undefined);
+    // SSRF guard: validates the target AND re-validates every redirect hop before issuing it.
+    const response = await ssrfSafeFetch(sourceUrl, signal ? { signal } : {}, { label: `Rendered clip ${clip.clipId}` });
     if (!response.ok) {
       throw new Error(`Failed to download rendered clip ${clip.clipId}: HTTP ${response.status}`);
     }
@@ -353,4 +439,29 @@ export class AssemblyEngine {
       });
     });
   }
+}
+
+function mergedBoundaryTransitionIntent(
+  outgoingClip: AssemblyClip | undefined,
+  incomingClip: AssemblyClip | undefined
+): string | undefined {
+  const outgoing = cleanTransitionIntent(outgoingClip?.transitionOutIntent);
+  const incoming = cleanTransitionIntent(incomingClip?.transitionInIntent);
+  if (!outgoing && !incoming) {
+    return undefined;
+  }
+  if (outgoing && incoming && outgoing.toLowerCase() !== incoming.toLowerCase()) {
+    return `outgoing: ${outgoing} | incoming: ${incoming}`;
+  }
+  return outgoing ?? incoming;
+}
+
+function cleanTransitionIntent(value: string | undefined): string | undefined {
+  const trimmed = value?.replace(/\s+/g, " ").trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return trimmed.length > MAX_TRANSITION_INTENT_CHARS
+    ? `${trimmed.slice(0, MAX_TRANSITION_INTENT_CHARS - 1).trimEnd()}...`
+    : trimmed;
 }

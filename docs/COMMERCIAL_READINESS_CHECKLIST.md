@@ -1,4 +1,9 @@
 # Commercial Readiness Checklist
+> ⚠️ **TÀI LIỆU THIẾT KẾ — KHÔNG PHẢI MÔ TẢ CODE HIỆN TẠI.**
+> Cập nhật lần cuối: **2026-07-02**. Từ đó tới nay mã nguồn đã đổi rất nhiều.
+> Đọc [`BAN-DO-DU-AN.md`](../BAN-DO-DU-AN.md) để biết dự án HIỆN TẠI ra sao.
+> Khi tài liệu này mâu thuẫn với code, **code đúng** — tài liệu là cái sai.
+
 
 This checklist defines the commercial-core bar before CineJelly can accept customer traffic. It is intentionally stricter than a green build or a short paid render.
 
@@ -21,7 +26,7 @@ Status on 2026-06-26: backend hygiene, Short evidence draft handoffs, and report
 - [x] Async pre-export review/approval is wired after artifact validation so retained artifacts can pause for artifact-bound evidence and be approved for export without rerendering or reserving spend again.
 - [x] No-spend agentic short-pipeline planning foundation exists with product URL fingerprinting, optional template suggestions, brand-kit guardrails, and scene/audio/caption/claim review checkpoints.
 - [x] No-spend short-pipeline conversation backend exists for natural-language turns, revision tracking, optional-template rejection, approval-intent detection, and raw transcript redaction.
-- [x] No-spend durable short-pipeline conversation session store exists behind explicit `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH`, with atomic writes, client-scoped reads, and redaction checks for raw transcript, URLs, local paths, and secret-like values.
+- [x] No-spend durable Short Studio session/style stores default under `CINEJELLY_OUTPUT_DIR`, can be overridden by explicit store paths, and keep atomic writes, client-scoped reads, and redaction checks for raw transcript, URLs, local paths, and secret-like values.
 - [x] No-spend short-pipeline session render handoff exists so a stored session can create a paused/blocked async render job only through server-side plan retrieval, rejection of client-side plan replacement, formal review evidence, client scope, and explicit spend confirmation.
 - [x] No-spend Product URL-to-Video backend extraction can parse bounded public HTML behind explicit live-network confirmation, feed safe product facts into short-pipeline planning, and emit schema-validated redaction evidence without provider spend.
 - [x] No-spend Short review-operation and product-rights operator draft/checklist handoffs exist, and direct template use is rejected by the accepted-packet validators.

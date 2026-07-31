@@ -1,4 +1,9 @@
 # CineJelly Seedance Ultimate Director - Architecture Spec
+> ⚠️ **TÀI LIỆU THIẾT KẾ — KHÔNG PHẢI MÔ TẢ CODE HIỆN TẠI.**
+> Cập nhật lần cuối: **2026-07-02**. Từ đó tới nay mã nguồn đã đổi rất nhiều.
+> Đọc [`BAN-DO-DU-AN.md`](../BAN-DO-DU-AN.md) để biết dự án HIỆN TẠI ra sao.
+> Khi tài liệu này mâu thuẫn với code, **code đúng** — tài liệu là cái sai.
+
 
 ## Status
 
@@ -8,7 +13,7 @@ This document is a production architecture specification for the first commercia
 
 Current repository:
 
-- `TechRate2/cinejelly-seedance-ultimate-director`: inspected as the current commercial product repository. Documentation now assumes upstream repositories are brought in with Git Subtree snapshots under `external/upstream/`.
+- `TechRate2/cinejelly-seedance-ultimate-director`: inspected as the current commercial product repository. Documentation now assumes upstream repositories are brought in as curated source snapshots under `external/upstream/`.
 
 Public sources:
 
@@ -124,13 +129,13 @@ The production implementation structure is:
 - `src/types`: shared type definitions for settings, graph nodes, provider requests, reports, and deliverables.
 - `data`: production-approved local knowledge artifacts such as copied prompt-pattern snapshots, bibles, source-derived evaluation rubrics, or curated product knowledge when required.
 - `external`: Git subtree snapshots of upstream repositories used for source review, copy/adaptation, and integration planning; production code does not import from this tree, and productized behavior moves into CineJelly-owned `src/`, `data/`, and `docs/`.
-- `schemas`: production/operator JSON schemas for graph, prompts, settings, provider requests, render request validation, paid-render validation reports, and review reports.
+- `schemas`: production/operator JSON schemas for graph, prompts, settings, provider requests, render request validation, paid-render validation reports, review reports, and no-spend validation evidence reports.
 - `config`: production configuration templates without secrets.
 - `ops`: deployment and runtime operations.
 - `assets/reference_inputs`: user/reference media staging boundary.
 - `assets/output_deliverables`: local output delivery boundary.
 
-No test, mock, demo, sample, or example folder is part of this structure.
+No test, mock, demo, sample, or example folder is part of the production runtime path or Docker runtime image. No-spend smoke/audit scripts and report schemas may live in `scripts/` and `schemas/` as validation guardrails, but they must not be imported by runtime code or copied into the production container image.
 
 ## Core Agents
 
@@ -410,9 +415,10 @@ The first commercial implementation should include:
 - Timeline assembly and export.
 - Cost ledger and review packet.
 
-The first implementation should not include:
+The first runtime implementation should not include:
 
-- Test/mock/demo/example code or files.
+- Test/mock/demo/example code or files in `src/`, `dist/`, or the production container image.
+- Validation harness files imported into runtime code.
 - Hardcoded niche campaign templates.
 - Unsupported model-provider claims.
 - Unattributed or license-unreviewed prompt examples from public corpora.

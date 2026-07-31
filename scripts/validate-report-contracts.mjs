@@ -17,11 +17,17 @@ const defaultContracts = [
   contract("business_readiness_plan", "schemas/business-readiness-validation-plan.schema.json", "assets/output_deliverables/business-readiness/business-readiness-validation-plan.json"),
   contract("live_readiness_inputs", "schemas/live-readiness-inputs-report.schema.json", "assets/output_deliverables/business-readiness/live-readiness-inputs-report.json"),
   contract("deployment_package_validation", "schemas/deployment-package-validation-report.schema.json", "assets/output_deliverables/business-readiness/deployment-package-validation-report.json"),
+  contract("source_structure_audit", "schemas/source-structure-audit-report.schema.json", "assets/output_deliverables/business-readiness/source-structure-audit-report.json"),
+  contract("api_response_redaction_smoke", "schemas/api-response-redaction-smoke-report.schema.json", "assets/output_deliverables/business-readiness/api-response-redaction-smoke-report.json"),
+  contract("private_source_lineage_boundary_audit", "schemas/private-source-lineage-boundary-audit-report.schema.json", "assets/output_deliverables/business-readiness/private-source-lineage-boundary-audit-report.json"),
+  contract("render_request_contract_smoke", "schemas/render-request-contract-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-request-contract-smoke-report.json"),
   contract("deployment_readiness_capture", "schemas/deployment-readiness-capture-report.schema.json", "assets/output_deliverables/business-readiness/deployment-preflight-report.json"),
   contract("local_deployment_capture_smoke", "schemas/deployment-readiness-capture-report.schema.json", "assets/output_deliverables/business-readiness/local-deployment-capture-smoke.json"),
   contract("render_job_history_smoke", "schemas/render-job-history-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-job-history-smoke-report.json"),
   contract("render_job_review_lifecycle_smoke", "schemas/render-job-review-lifecycle-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-job-review-lifecycle-smoke-report.json"),
   contract("render_scheduler_smoke", "schemas/render-scheduler-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-scheduler-smoke-report.json"),
+  contract("video_render_strategy_smoke", "schemas/video-render-strategy-smoke-report.schema.json", "assets/output_deliverables/business-readiness/video-render-strategy-smoke-report.json"),
+  contract("last_frame_chaining_smoke", "schemas/last-frame-chaining-smoke-report.schema.json", "assets/output_deliverables/business-readiness/last-frame-chaining-smoke-report.json"),
   contract("render_provider_reconciliation", "schemas/render-provider-reconciliation-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json"),
   contract("render_provider_handoff", "schemas/render-provider-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-handoff-report.json"),
   contract("render_provider_external_lease", "schemas/render-provider-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json"),
@@ -72,6 +78,7 @@ const defaultContracts = [
   contract("generated_audio_manual_review_readiness", "schemas/generated-audio-manual-review-readiness-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-manual-review-readiness-report.json"),
   contract("generated_audio_mapping_smoke", "schemas/generated-audio-mapping-smoke-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-mapping-smoke-report.json"),
   contract("generated_audio_polling_resilience", "schemas/generated-audio-polling-resilience-smoke-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-polling-resilience-smoke-report.json"),
+  contract("transition_audio_continuity_smoke", "schemas/transition-audio-continuity-smoke-report.schema.json", "assets/output_deliverables/business-readiness/transition-audio-continuity-smoke-report.json"),
   contract("short_pipeline_smoke", "schemas/short-pipeline-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-pipeline-smoke-report.json"),
   contract("short_viral_intelligence_smoke", "schemas/short-viral-intelligence-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-viral-intelligence-smoke-report.json"),
   contract("short_agent_graph_smoke", "schemas/short-agent-graph-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-agent-graph-smoke-report.json"),
@@ -79,6 +86,11 @@ const defaultContracts = [
   contract("short_pipeline_session_store_smoke", "schemas/short-pipeline-session-store-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-pipeline-session-store-smoke-report.json"),
   contract("short_pipeline_session_render_handoff_smoke", "schemas/short-pipeline-session-render-handoff-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-pipeline-session-render-handoff-smoke-report.json"),
   contract("short_mvp_ui_contract_smoke", "schemas/short-mvp-ui-contract-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-mvp-ui-contract-smoke-report.json"),
+  contract("short_prompt_pattern_corpus", "schemas/short-prompt-pattern-corpus-report.schema.json", "assets/output_deliverables/business-readiness/short-prompt-pattern-corpus-report.json"),
+  contract("short_platform_template_corpus", "schemas/short-platform-template-corpus-report.schema.json", "assets/output_deliverables/business-readiness/short-platform-template-corpus-report.json"),
+  contract("short_backend_integration_audit", "schemas/short-backend-integration-audit-report.schema.json", "assets/output_deliverables/business-readiness/short-backend-integration-audit-report.json"),
+  contract("backend_system_readiness_audit", "schemas/backend-system-readiness-audit-report.schema.json", "assets/output_deliverables/business-readiness/backend-system-readiness-audit-report.json"),
+  contract("backend_system_suite", "schemas/backend-system-suite-report.schema.json", "assets/output_deliverables/business-readiness/backend-system-suite-report.json"),
   contract("short_review_operation_evidence", "schemas/short-review-operation-evidence.schema.json", "ops/short-review-operation-evidence.json"),
   contract("short_review_operation_draft", "schemas/short-review-operation-evidence-draft-report.schema.json", "assets/output_deliverables/business-readiness/short-review-operation-evidence-draft-report.json"),
   contract("short_review_operation_validation", "schemas/short-review-operation-validation-report.schema.json", "assets/output_deliverables/business-readiness/short-review-operation-validation-report.json"),
@@ -88,7 +100,6 @@ const defaultContracts = [
   contract("short_product_rights_validation", "schemas/short-product-rights-validation-report.schema.json", "assets/output_deliverables/business-readiness/short-product-rights-validation-report.json"),
   contract("short_product_rights_guard", "schemas/short-product-rights-evidence-guard-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-product-rights-evidence-guard-smoke-report.json"),
   contract("operator_launch_ui_contract_smoke", "schemas/operator-launch-ui-contract-smoke-report.schema.json", "assets/output_deliverables/business-readiness/operator-launch-ui-contract-smoke-report.json"),
-  contract("product_url_extraction_smoke", "schemas/product-url-extraction-smoke-report.schema.json", "assets/output_deliverables/business-readiness/product-url-extraction-smoke-report.json"),
   contract("director_style_semantic_review", "schemas/director-style-semantic-review.schema.json", "assets/output_deliverables/business-readiness/director-style-semantic-review.json"),
   contract("director_style_audio_review", "schemas/director-style-audio-review.schema.json", "assets/output_deliverables/business-readiness/director-style-audio-review.json"),
   contract("director_style_runtime_review", "schemas/director-style-runtime-review.schema.json", "assets/output_deliverables/business-readiness/director-style-runtime-review.json"),
@@ -318,6 +329,9 @@ function failContract(item, issues) {
 function validateSemanticContract(item, report, options) {
   if (item.name === "snapshot_parity_audit") {
     return validateSnapshotParityAuditSemantics(report);
+  }
+  if (item.name === "source_structure_audit") {
+    return validateSourceStructureAuditSemantics(report);
   }
   if (item.name === "commercial_launch_doctor") {
     return validateCommercialLaunchDoctorSemantics(report, {
@@ -647,7 +661,7 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
       issues.push("$.commercialOfferScopeSummary.blocksApiCliCommercialLaunch: expected false for API/CLI-only commercial scope.");
     }
     if (scopeSummary.status === "first_party_web_ui_required" && scopeSummary.blocksApiCliCommercialLaunch !== true) {
-      issues.push("$.commercialOfferScopeSummary.blocksApiCliCommercialLaunch: expected true when first-party Web UI is required before customer traffic.");
+      issues.push("$.commercialOfferScopeSummary.blocksApiCliCommercialLaunch: expected true when the full first-party commercial Web UI is required before customer traffic.");
     }
   }
   issues.push(
@@ -759,17 +773,29 @@ function validateSnapshotParityAuditSemantics(report) {
   if (report?.summary?.inventoryCoverageCount !== report?.summary?.expectedSnapshotCount) {
     issues.push("$.summary.inventoryCoverageCount: expected every configured snapshot to be covered by inventory docs.");
   }
-  if (report?.summary?.sourceLineageCoverageCount !== report?.summary?.expectedSnapshotCount) {
-    issues.push("$.summary.sourceLineageCoverageCount: expected every configured snapshot to have source-lineage coverage.");
+  // Reference-only snapshots are excluded from lineage and parity expectations BY DESIGN. A lineage
+  // record asserts that product logic was translated from a snapshot, and a parity estimate says how
+  // much of it we reproduced — both are false claims for a snapshot whose license forbids copying.
+  // Demanding them would push someone to invent one.
+  const inventory = Array.isArray(report?.snapshotInventory) ? report.snapshotInventory : [];
+  const translatedSnapshots = inventory.filter((item) => item?.referenceOnly !== true);
+  if (report?.summary?.sourceLineageCoverageCount !== translatedSnapshots.length) {
+    issues.push("$.summary.sourceLineageCoverageCount: expected every non-reference-only snapshot to have source-lineage coverage.");
   }
   const functionalEstimates = Array.isArray(report?.functionalParityEstimates) ? report.functionalParityEstimates : [];
-  if (functionalEstimates.length !== report?.summary?.expectedSnapshotCount) {
-    issues.push("$.functionalParityEstimates: expected one functional parity estimate per configured snapshot.");
+  if (functionalEstimates.length !== translatedSnapshots.length) {
+    issues.push("$.functionalParityEstimates: expected one functional parity estimate per non-reference-only snapshot.");
+  }
+  const referenceOnlyWithEstimate = inventory
+    .filter((item) => item?.referenceOnly === true)
+    .filter((item) => functionalEstimates.some((estimate) => estimate?.id === item?.id));
+  if (referenceOnlyWithEstimate.length > 0) {
+    issues.push(`$.functionalParityEstimates: reference-only snapshots must have NO parity estimate (${referenceOnlyWithEstimate.map((item) => item.id).join(", ")}).`);
   }
   if (Number(report?.summary?.functionalParityEstimateCount ?? -1) !== functionalEstimates.filter((item) => item?.status === "estimated").length) {
     issues.push("$.summary.functionalParityEstimateCount: expected to equal estimated functionalParityEstimates length.");
   }
-  for (const snapshot of Array.isArray(report?.snapshotInventory) ? report.snapshotInventory : []) {
+  for (const snapshot of translatedSnapshots) {
     const estimate = functionalEstimates.find((item) => item?.id === snapshot?.id);
     if (!estimate) {
       issues.push(`$.functionalParityEstimates: expected estimate for snapshot ${snapshot?.id}.`);
@@ -824,6 +850,47 @@ function validateSnapshotParityAuditSemantics(report) {
   return issues;
 }
 
+function validateSourceStructureAuditSemantics(report) {
+  const issues = [];
+  if (report?.status !== "pass") {
+    issues.push("$.status: expected pass for source structure evidence.");
+  }
+  if (Number(report?.summary?.failedChecks ?? 0) !== 0) {
+    issues.push("$.summary.failedChecks: expected zero failed source-structure checks.");
+  }
+  if (Number(report?.summary?.missingRootFileCount ?? 0) !== 0) {
+    issues.push("$.summary.missingRootFileCount: expected zero missing root files.");
+  }
+  if (Number(report?.summary?.missingRuntimeDirCount ?? 0) !== 0) {
+    issues.push("$.summary.missingRuntimeDirCount: expected zero missing runtime directories.");
+  }
+  if (Number(report?.summary?.missingDeployFileCount ?? 0) !== 0) {
+    issues.push("$.summary.missingDeployFileCount: expected zero missing deploy files.");
+  }
+  if (Number(report?.summary?.directExternalImportFindingCount ?? 0) !== 0) {
+    issues.push("$.summary.directExternalImportFindingCount: expected zero direct external imports.");
+  }
+  if (Number(report?.summary?.productHygieneFindingCount ?? 0) !== 0) {
+    issues.push("$.summary.productHygieneFindingCount: expected zero product test/mock/demo/sample findings.");
+  }
+  if (Number(report?.summary?.publicExportMissingCount ?? 0) !== 0) {
+    issues.push("$.summary.publicExportMissingCount: expected zero missing public exports.");
+  }
+  if (Number(report?.summary?.packageForbiddenFileEntryCount ?? 0) !== 0) {
+    issues.push("$.summary.packageForbiddenFileEntryCount: expected zero forbidden package file entries.");
+  }
+  if (report?.releaseGateSummary?.sourceStructurePass !== true) {
+    issues.push("$.releaseGateSummary.sourceStructurePass: expected true.");
+  }
+  if (report?.releaseGateSummary?.canUseAsNoSpendSourceStructureEvidence !== true) {
+    issues.push("$.releaseGateSummary.canUseAsNoSpendSourceStructureEvidence: expected true.");
+  }
+  if (report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false) {
+    issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: expected false; source structure is not commercial release approval.");
+  }
+  return issues;
+}
+
 function validateBusinessCompletionAuditSemantics(report) {
   const issues = [];
   const blockers = Array.isArray(report?.blockers) ? report.blockers : [];
@@ -871,7 +938,7 @@ function validateBusinessCompletionAuditSemantics(report) {
       issues.push("$.commercialOfferScopeSummary.launchIntakeStatus: expected to match sourceReports.launchIntake.status.");
     }
     if (scopeSummary.blocksFullSnapshotParity !== true) {
-      issues.push("$.commercialOfferScopeSummary.blocksFullSnapshotParity: expected true while first-party Web UI is not implemented.");
+      issues.push("$.commercialOfferScopeSummary.blocksFullSnapshotParity: expected true while the full first-party commercial Web UI is incomplete.");
     }
     if (firstPartyUiGap) {
       if (firstPartyUiGap.scopeDecisionRequired !== scopeSummary.scopeDecisionRequired) {
@@ -889,8 +956,17 @@ function validateBusinessCompletionAuditSemantics(report) {
       if (scopeSummary.status === "scope_decision_pending" && firstPartyUiGap.status !== "scope_decision_pending") {
         issues.push("$.productCodeGaps[id=first_party_web_ui].status: expected scope_decision_pending when commercial offer scope is undecided.");
       }
+      if (typeof firstPartyUiGap.label === "string" && /not implemented/i.test(firstPartyUiGap.label)) {
+        issues.push("$.productCodeGaps[id=first_party_web_ui].label: expected partial commercial Web UI wording, not a stale not-implemented claim.");
+      }
+      if (Number(firstPartyUiGap.currentCoveragePercent ?? -1) <= 0) {
+        issues.push("$.productCodeGaps[id=first_party_web_ui].currentCoveragePercent: expected positive coverage because the Short Studio/operator UI shells and UI contracts exist.");
+      }
+      if (typeof firstPartyUiGap.sourceEvidence === "string" && !firstPartyUiGap.sourceEvidence.includes("short-mvp-ui-contract-smoke-report.json")) {
+        issues.push("$.productCodeGaps[id=first_party_web_ui].sourceEvidence: expected current Short MVP UI contract evidence.");
+      }
     } else {
-      issues.push("$.productCodeGaps: expected first_party_web_ui product-code gap while no first-party UI exists.");
+      issues.push("$.productCodeGaps: expected first_party_web_ui product-code gap until the full first-party commercial Web UI is complete or explicitly scoped out.");
     }
   }
   issues.push(
@@ -1243,6 +1319,8 @@ function validateSourceVideoAutoAnalysisSmokeSemantics(report) {
     "existing_analysis_not_overwritten",
     "asset_reference_skipped",
     "secret_query_reference_skipped",
+    "secret_query_value_reference_skipped",
+    "localhost_reference_skipped",
     "clean_https_generates_bounded_analysis",
     "leaking_output_rejected_non_strict",
     "strict_empty_analysis_throws"
@@ -1276,7 +1354,12 @@ function validateSourceVideoAutoAnalysisSmokeSemantics(report) {
   if (existing?.preservedExistingAnalysis !== true || existing?.frameSamplerCallCount !== 0 || existing?.syntheticLlmCallCount !== 0) {
     issues.push("$.scenarioSummaries[existing_analysis_not_overwritten]: expected caller analysis to be preserved with no side effects.");
   }
-  for (const scenarioName of ["asset_reference_skipped", "secret_query_reference_skipped"]) {
+  for (const scenarioName of [
+    "asset_reference_skipped",
+    "secret_query_reference_skipped",
+    "secret_query_value_reference_skipped",
+    "localhost_reference_skipped"
+  ]) {
     const scenario = scenarioByName.get(scenarioName);
     if (scenario?.frameSamplerCallCount !== 0 || scenario?.syntheticLlmCallCount !== 0 || scenario?.analysisPresent !== false) {
       issues.push(`$.scenarioSummaries[${scenarioName}]: expected unsafe reference to be skipped before frame sampling.`);
@@ -1305,7 +1388,11 @@ function validateSourceVideoAutoAnalysisSmokeSemantics(report) {
     issues.push("$.scenarioSummaries[leaking_output_rejected_non_strict]: expected leaking output to be rejected without attaching analysis.");
   }
   const strictEmpty = scenarioByName.get("strict_empty_analysis_throws");
-  if (!String(strictEmpty?.thrownErrorRedacted ?? "").includes("no usable deconstruction content")) {
+  const strictEmptyError = String(strictEmpty?.thrownErrorRedacted ?? "");
+  if (
+    !strictEmptyError.includes("no usable deconstruction content") &&
+    !strictEmptyError.includes("sourceVideoAnalysis must include at least one transformationIntent")
+  ) {
     issues.push("$.scenarioSummaries[strict_empty_analysis_throws].thrownErrorRedacted: expected strict unusable-output error.");
   }
   if (/data:image\/[a-z0-9.+-]+;base64,/i.test(JSON.stringify(report))) {
@@ -4407,7 +4494,7 @@ function validateCommercialLaunchIntakePacketSemantics(report) {
     }
   } else if (productSurface === "first_party_web_ui_required") {
     if (report?.commercialOfferScope?.uiRequiredBeforeCustomerTraffic !== true) {
-      issues.push("$.commercialOfferScope.uiRequiredBeforeCustomerTraffic: expected true when first-party Web UI is required.");
+      issues.push("$.commercialOfferScope.uiRequiredBeforeCustomerTraffic: expected true when the full first-party commercial Web UI is required.");
     }
   }
 
@@ -4656,7 +4743,7 @@ function validateCommercialLaunchIntakeSemantics(report) {
     issues.push("$.intakeSummary.uiRequiredBeforeCustomerTraffic: expected false for API/CLI-only commercial scope.");
   }
   if (report?.intakeSummary?.commercialOfferProductSurface === "first_party_web_ui_required" && report?.intakeSummary?.uiRequiredBeforeCustomerTraffic !== true) {
-    issues.push("$.intakeSummary.uiRequiredBeforeCustomerTraffic: expected true for first-party Web UI required scope.");
+    issues.push("$.intakeSummary.uiRequiredBeforeCustomerTraffic: expected true for full first-party commercial Web UI required scope.");
   }
   if (report?.releaseGateSummary?.canRunPaidAtlasValidation !== false) {
     issues.push("$.releaseGateSummary.canRunPaidAtlasValidation: launch intake must not authorize paid Atlas execution by itself.");

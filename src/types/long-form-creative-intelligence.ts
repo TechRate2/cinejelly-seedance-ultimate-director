@@ -32,6 +32,13 @@ export type LongFormCreativeRepairScope = "story" | "sequence" | "shot" | "promp
 
 export type LongFormCreativeRepairPriority = "low" | "medium" | "high" | "critical";
 
+export type LongFormCreativeIdeaSource =
+  | "audience_niche"
+  | "story_bible"
+  | "source_video_structure"
+  | "timeline_production_contract"
+  | "director_repair";
+
 export type LongFormCreativeViralLever =
   | "specific_niche_promise"
   | "fast_hook"
@@ -113,6 +120,33 @@ export interface LongFormCreativeRepairDirective {
   readonly requiresManualReview: boolean;
 }
 
+export interface LongFormCreativeIdeaScore {
+  readonly hookStrength: number;
+  readonly retentionDepth: number;
+  readonly nicheFit: number;
+  readonly proofSpecificity: number;
+  readonly continuitySafety: number;
+  readonly renderReadiness: number;
+  readonly originality: number;
+  readonly totalScore: number;
+}
+
+export interface LongFormCreativeIdeaCandidate {
+  readonly ideaId: string;
+  readonly label: string;
+  readonly source: LongFormCreativeIdeaSource;
+  readonly selectedForRender: boolean;
+  readonly logline: string;
+  readonly openingHook: string;
+  readonly sequenceArc: readonly string[];
+  readonly proofPlan: string;
+  readonly audioNarrationPlan: string;
+  readonly sourceVideoAdaptationRule: string;
+  readonly productionRisks: readonly string[];
+  readonly score: LongFormCreativeIdeaScore;
+  readonly reasons: readonly string[];
+}
+
 export interface LongFormCreativeAudioCaptionQuality {
   readonly status: LongFormCreativeIntelligenceStatus;
   readonly captionCoverageRatio: number;
@@ -140,11 +174,14 @@ export interface LongFormCreativeIntelligencePlan {
   readonly findingCount: number;
   readonly blockingFindingCount: number;
   readonly reviewRequiredFindingCount: number;
+  readonly selectedIdeaCandidateId?: string;
+  readonly ideaCandidateCount: number;
   readonly shotDirectiveCount: number;
   readonly candidateDirectiveCount: number;
   readonly repairDirectiveCount: number;
   readonly audioCaptionQuality: LongFormCreativeAudioCaptionQuality;
   readonly findings: readonly LongFormCreativeQualityFinding[];
+  readonly ideaCandidates: readonly LongFormCreativeIdeaCandidate[];
   readonly shotDirectives: readonly LongFormCreativeShotDirective[];
   readonly candidateDirectives: readonly LongFormCreativeCandidateDirective[];
   readonly repairDirectives: readonly LongFormCreativeRepairDirective[];

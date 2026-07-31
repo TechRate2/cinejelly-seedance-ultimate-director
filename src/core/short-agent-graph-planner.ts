@@ -26,7 +26,11 @@ import type {
   ShortAgentResearchQuestion,
   ShortAgentStageName,
   ShortAgentStageRun,
+  ShortSeedanceAudioScriptLine,
+  ShortSeedanceDurationProductionContract,
   ShortSeedancePromptPack,
+  ShortSeedanceProductionAct,
+  ShortSeedanceShotBeatContract,
   ShortSeedanceShotPrompt
 } from "../types/short-agent.js";
 import type {
@@ -39,15 +43,14 @@ import type {
 } from "../types/short-viral-intelligence.js";
 import { hasCopyRiskIntent } from "../utils/copy-risk-intent.js";
 import { createStableId } from "../utils/ids.js";
+import { resolveSeedanceDna, SEEDANCE_ANATOMY_DIRECTIVE } from "./seedance-dna.js";
+import { registerForCreativeMode } from "./register-grammar.js";
+import {
+  internalSourcePatternOrigins,
+  SHORT_AGENT_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "hereandnowai/master-langgraph-workflows-in-python-20-real-world-agent-projects-by-hereandnow-ai",
-  "nirdiamant/genai_agents:ContentIntelligence",
-  "gswithjeff/autogen-multi-agent-workflow",
-  "Shubhamsaboo/awesome-llm-apps",
-  "YouMind-OpenLab/awesome-seedance-2-prompts",
-  "ZeroLu/awesome-seedance"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(SHORT_AGENT_SOURCE_PATTERN_IDS);
 
 const GLOBAL_NEGATIVE_CONSTRAINTS = [
   "no unsupported medical, financial, or absolute claims",
@@ -204,6 +207,18 @@ function memoryPackFor(input: ShortAgentGraphPlannerInput): ShortAgentMemoryPack
       "Reference adaptation guardrail",
       "Use reference structure, pacing, camera language, and retention mechanics only; replace script, assets, identity, claims, and brand marks.",
       ["reference_video", "originality", strategy.platformFocus]
+    ),
+    memoryPattern(
+      "seedance_prompt_playbook",
+      "Seedance reference tag binding",
+      "When provider references exist, mention each reference tag before visual prose, bind KOL identity and product geometry first, then describe camera, action, light, audio, and endpoint.",
+      ["reference_to_video", "@image", "identity", "product"]
+    ),
+    memoryPattern(
+      "seedance_prompt_playbook",
+      "Human-real UGC acting",
+      "Direct realistic human behavior with natural blink timing, tiny eye-line shifts, hand-speed imperfections, skin texture, physical product contact, and conversational pauses; avoid mannequin poses and plastic skin.",
+      ["ugc_review", "creator", "kol", "realism"]
     )
   ];
   if (input.brandKitEvaluation?.brandName || input.brandKitEvaluation?.tone) {
@@ -359,6 +374,8 @@ function seedancePromptPackFor(
   const reference = input.viralIntelligence.referenceVideoPattern;
   const selectedIdea = selectedCreativeIdea(input);
   const shots = shotPromptsFor(input, selectedCandidate, critiques);
+  const durationProductionContract = durationProductionContractFor(input, shots);
+  const audioScript = audioScriptFor(input, shots);
   const promptPackId = createStableId(
     "short_seedance_pack",
     [
@@ -379,10 +396,18 @@ function seedancePromptPackFor(
     `Product/subject: ${product}. Brand: ${brand}. Niche: ${strategy.niche}. Audience: ${input.intent.audience}.`,
     channelStyleLine,
     `Creative mode: ${strategy.creativeMode}. Platform focus: ${strategy.platformFocus}. Target duration: ${input.intent.targetDurationSeconds}s. Aspect ratio: ${input.intent.aspectRatio}.`,
+    shortDurationArcPrompt(input.intent.targetDurationSeconds, input.scenes),
+    durationProductionContractLine(durationProductionContract),
     selectedCandidate ? `Winning candidate: ${selectedCandidate.label}. Hook: ${selectedCandidate.hook}. Story arc: ${selectedCandidate.storyArc}.` : "",
     selectedIdea ? `Selected creative-pattern idea: ${selectedIdea.label}. Hook: ${selectedIdea.hook}. Proof: ${selectedIdea.proofPlan}. KOL direction: ${selectedIdea.creatorOrKolDirection}.` : "",
     `Viewer desire: ${strategy.viewerDesire}. Viewer objection: ${strategy.viewerObjection}.`,
     `Use viral levers: ${strategy.viralLevers.join(", ")}.`,
+    ...resolveSeedanceDna({ niche: strategy.niche, creativeMode: strategy.creativeMode }).promptLines,
+    SEEDANCE_ANATOMY_DIRECTIVE,
+    "Seedance quality contract: write prompt details as physical direction, not abstract marketing. Specify reference binding, subject identity, product geometry, lens distance, camera motion, lighting source, hand/action timing, material texture, background depth, audio bed, and exact final frame.",
+    seedanceReferenceHandleDiscipline(input),
+    "Human realism contract: natural blink timing, tiny pauses before/after product contact, believable eye-line, slight handheld correction, real skin/hand texture, and unpolished creator timing. Avoid stiff posing, plastic skin, warped fingers, floating products, overacting, and studio-commercial fakery unless user asks for cinematic mode.",
+    `Native/audio contract: if model audio is enabled, produce natural room tone, voice timing, soft music/SFX, and cadence from the shot audio fields; also keep the TTS-ready audio script separate for later external voice APIs. Script lines: ${audioScript.map((line) => `${line.startSecond}-${line.endSecond}s ${line.spokenLine}`).join(" | ")}`,
     reference
       ? `Reference policy: adapt structure only from ${reference.patternId}; hook=${reference.hookPattern}; pacing=${reference.pacingPattern}; camera=${reference.cameraPattern}; text-rhythm=${reference.captionPattern}; do not render visible text.`
       : "Reference policy: no external reference video pattern supplied; use original shots from product, brand, and user brief evidence.",
@@ -401,6 +426,8 @@ function seedancePromptPackFor(
     aspectRatio: input.intent.aspectRatio,
     masterPrompt,
     shotPrompts: shots,
+    durationProductionContract,
+    audioScript,
     globalNegativeConstraints: GLOBAL_NEGATIVE_CONSTRAINTS,
     audioPlan: audioPlanFor(strategy.creativeMode, channelVoiceStyle(input.channelStyleProfile) ?? input.brandKitEvaluation?.tone),
     captionPlan: visibleTextPlanFor(strategy.platformFocus, input.brandKitEvaluation?.language, input.channelStyleProfile?.captionStyle),
@@ -426,14 +453,33 @@ function shotPromptsFor(
     cursor = endSecond;
     const firstFrame = directive?.firstFrameRule ?? firstFrameFor(sceneItem, input);
     const camera = directive?.cameraCue ?? cameraFor(sceneItem, input.viralIntelligence.nicheStrategy.creativeMode);
-    const action = actionFor(sceneItem, input, selectedCandidate);
+    const action = compactLines([
+      actionFor(sceneItem, input, selectedCandidate),
+      timeboxedActionCueFor(sceneItem, startSecond, endSecond, input.intent.targetDurationSeconds)
+    ]);
     const caption = "NO_ON_SCREEN_TEXT";
     const audio = audioForScene(sceneItem, input.viralIntelligence.nicheStrategy.creativeMode, channelVoiceStyle(input.channelStyleProfile) ?? input.brandKitEvaluation?.tone);
+    const beatContract = beatContractFor(sceneItem, input, index, startSecond, endSecond);
+    const voiceoverLine = voiceoverLineFor(sceneItem, input, beatContract, startSecond, endSecond);
+    const musicCue = musicCueFor(sceneItem, input.viralIntelligence.nicheStrategy.creativeMode);
+    const sfxCue = sfxCueFor(sceneItem, input.productBrief?.title ?? "main subject");
+    const nativeAudioPrompt = nativeAudioPromptFor({
+      audio,
+      voiceoverLine,
+      musicCue,
+      sfxCue,
+      beatContract
+    });
     const continuity = continuityFor(sceneItem, input, index);
+    const transitionBridge = transitionBridgeFor(sceneItem, input, index);
     const referencePolicy = directive?.referencePatternAlignment ??
       (input.viralIntelligence.referenceVideoPattern
         ? "Adapt reference timing and framing only; all assets and claims must be original or approved."
         : "Original shot based on user brief, product evidence, and brand kit.");
+    const scopedReferencePolicy = compactLines([
+      referencePolicy,
+      seedanceReferenceHandleDiscipline(input)
+    ]);
     const shotId = createStableId("short_seedance_shot", `${input.projectId}:${sceneItem.sceneId}:${startSecond}:${endSecond}:${action}`);
     return {
       shotId,
@@ -447,11 +493,17 @@ function shotPromptsFor(
       visualPrompt: visualPromptFor(sceneItem, input, firstFrame, action),
       camera,
       action,
-      dialogueOrNarration: sceneItem.narration,
+      dialogueOrNarration: voiceoverLine,
       caption,
       audio,
+      beatContract,
+      voiceoverLine,
+      nativeAudioPrompt,
+      musicCue,
+      sfxCue,
       continuity,
-      referencePolicy,
+      transitionBridge,
+      referencePolicy: scopedReferencePolicy,
       negativeConstraints: negativeConstraintsFor(sceneItem, input),
       qualityChecks: uniqueStrings([
         ...(directive?.qualityChecks ?? qualityChecksFor(sceneItem)),
@@ -459,6 +511,284 @@ function shotPromptsFor(
       ], 10)
     };
   });
+}
+
+function durationProductionContractFor(
+  input: ShortAgentGraphPlannerInput,
+  shots: readonly ShortSeedanceShotPrompt[]
+): ShortSeedanceDurationProductionContract {
+  const actStructure = shots.map((shot) => shot.beatContract.act);
+  const sceneRoleOrder = input.scenes.map((sceneItem) => sceneItem.role);
+  const targetDurationSeconds = input.intent.targetDurationSeconds;
+  const minVisualChangeCount = Math.max(
+    input.scenes.length,
+    targetDurationSeconds <= 15
+      ? 4
+      : targetDurationSeconds <= 30
+        ? 8
+        : Math.min(24, Math.ceil(targetDurationSeconds / 3))
+  );
+  const hasOpening = actStructure.includes("opening");
+  const hasDevelopment = actStructure.includes("development");
+  const hasPayoff = actStructure.includes("payoff");
+  const timingRisk: ShortSeedanceDurationProductionContract["timingRisk"] =
+    hasOpening && hasDevelopment && hasPayoff && shots.length >= 3
+      ? "low"
+      : shots.length >= 2
+        ? "medium"
+        : "high";
+  return {
+    schemaVersion: "cinejelly.short-duration-production-contract.v1",
+    targetDurationSeconds,
+    actStructure,
+    sceneRoleOrder,
+    minVisualChangeCount,
+    completionRule: completionRuleFor(targetDurationSeconds, sceneRoleOrder),
+    timingRisk
+  };
+}
+
+function durationProductionContractLine(contract: ShortSeedanceDurationProductionContract): string {
+  return [
+    "Duration production contract:",
+    `target=${contract.targetDurationSeconds}s`,
+    `acts=${contract.actStructure.join(">")}`,
+    `roles=${contract.sceneRoleOrder.join(">")}`,
+    `minVisualChanges=${contract.minVisualChangeCount}`,
+    `timingRisk=${contract.timingRisk}`,
+    contract.completionRule
+  ].join(" ");
+}
+
+function completionRuleFor(
+  targetDurationSeconds: number,
+  roles: readonly ShortPipelineScenePlan["role"][]
+): string {
+  const roleLine = roles.join(" > ");
+  if (targetDurationSeconds <= 15) {
+    return `Complete the whole promise inside ${targetDurationSeconds}s: opening hook, proof/demo development, and payoff ending must all be visible; role order ${roleLine}.`;
+  }
+  if (targetDurationSeconds <= 30) {
+    return `Complete a compact three-act short inside ${targetDurationSeconds}s with no dead scene: hook, context, proof/demo, and ending payoff; role order ${roleLine}.`;
+  }
+  return `Sustain the short across ${targetDurationSeconds}s with repeated information changes, but still resolve the original hook in the final act; role order ${roleLine}.`;
+}
+
+function beatContractFor(
+  sceneItem: ShortPipelineScenePlan,
+  input: ShortAgentGraphPlannerInput,
+  index: number,
+  startSecond: number,
+  endSecond: number
+): ShortSeedanceShotBeatContract {
+  const product = input.productBrief?.title ?? "main subject";
+  const act = productionActFor(sceneItem, index, input.scenes.length);
+  return {
+    act,
+    timingGoal: timeboxedActionCueFor(sceneItem, startSecond, endSecond, input.intent.targetDurationSeconds),
+    requiredVisualChange: visualChangeFor(sceneItem, product),
+    narrationJob: narrationJobFor(sceneItem, product),
+    audioJob: audioJobFor(sceneItem, act),
+    endpointJob: endpointJobFor(sceneItem, input, index)
+  };
+}
+
+function productionActFor(
+  sceneItem: ShortPipelineScenePlan,
+  index: number,
+  sceneCount: number
+): ShortSeedanceProductionAct {
+  if (index === 0 || sceneItem.role === "hook") {
+    return "opening";
+  }
+  if (index === sceneCount - 1 || sceneItem.role === "payoff" || sceneItem.role === "offer") {
+    return "payoff";
+  }
+  return "development";
+}
+
+function visualChangeFor(sceneItem: ShortPipelineScenePlan, product: string): string {
+  switch (sceneItem.role) {
+    case "hook":
+      return `viewer sees ${product} or the problem/result promise before the first second ends`;
+    case "problem":
+      return "viewer sees the friction become specific through a human action or before-state";
+    case "proof":
+      return `viewer sees concrete evidence, texture, comparison, or product behavior for ${product}`;
+    case "demo":
+      return `viewer sees before-state, product contact/action, and after-state for ${product}`;
+    case "offer":
+      return "viewer sees why acting now follows naturally from the proof without a text card";
+    case "payoff":
+      return `viewer sees the resolved result, human reaction, or product-in-result frame for ${product}`;
+  }
+}
+
+function narrationJobFor(sceneItem: ShortPipelineScenePlan, product: string): string {
+  switch (sceneItem.role) {
+    case "hook":
+      return `say the problem or result promise in one natural spoken line about ${product}`;
+    case "problem":
+      return "name the viewer friction without exaggeration";
+    case "proof":
+      return "explain only the evidence visible in-frame";
+    case "demo":
+      return "talk through the use step while the action is happening";
+    case "offer":
+      return "make the next step feel earned, not pushy";
+    case "payoff":
+      return "resolve the original promise and stop before adding a new claim";
+  }
+}
+
+function audioJobFor(sceneItem: ShortPipelineScenePlan, act: ShortSeedanceProductionAct): string {
+  const base = act === "opening"
+    ? "audio starts immediately with no dead air"
+    : act === "payoff"
+      ? "audio resolves cleanly under the final visual"
+      : "audio keeps pace with the visible action";
+  if (sceneItem.role === "demo" || sceneItem.role === "proof") {
+    return `${base}; product/contact SFX may clarify the action but must not cover speech`;
+  }
+  return `${base}; music stays low and uncopyrighted`;
+}
+
+function endpointJobFor(
+  sceneItem: ShortPipelineScenePlan,
+  input: ShortAgentGraphPlannerInput,
+  index: number
+): string {
+  const product = input.productBrief?.title ?? "main subject";
+  const next = input.scenes[index + 1];
+  if (!next) {
+    return `finish on resolved ${product}/result frame with audio tail clean enough for final delivery`;
+  }
+  return `hold a stable ${product}/KOL/result frame that can become the first-frame reference for the next ${next.role} shot`;
+}
+
+function voiceoverLineFor(
+  sceneItem: ShortPipelineScenePlan,
+  input: ShortAgentGraphPlannerInput,
+  beatContract: ShortSeedanceShotBeatContract,
+  startSecond: number,
+  endSecond: number
+): string {
+  const product = input.productBrief?.title ?? "this";
+  const base = safeText(sceneItem.narration, 180);
+  const timing = `${startSecond}-${endSecond}s`;
+  if (base && base !== "NO_ON_SCREEN_TEXT") {
+    return `${base} (${timing}; ${beatContract.narrationJob})`;
+  }
+  switch (sceneItem.role) {
+    case "hook":
+      return `Watch what changes when ${product} enters the routine. (${timing}; immediate spoken hook)`;
+    case "problem":
+      return `This is the part that usually makes people hesitate. (${timing}; human context)`;
+    case "proof":
+      return `Here is the visible proof I would actually check. (${timing}; evidence only)`;
+    case "demo":
+      return `I use it like this, then look for the result in-frame. (${timing}; action-led demo)`;
+    case "offer":
+      return `If this matches your routine, this is the moment to compare it. (${timing}; soft next step)`;
+    case "payoff":
+      return `That is the before-to-after feeling the video promised. (${timing}; resolved ending)`;
+  }
+}
+
+function musicCueFor(sceneItem: ShortPipelineScenePlan, mode: ShortViralCreativeMode): string {
+  if (mode === "cinematic") {
+    return sceneItem.role === "payoff"
+      ? "restrained cinematic bed resolves softly"
+      : "premium low-volume cinematic pulse under dialogue";
+  }
+  // Every phone-register mode (ugc_review, testimonial, …) gets the platform-native cue — the
+  // register's audio axis allows at most a single trending/platform bed, never a scored ad bed;
+  // testimonial used to fall through to the generic "music bed" default (contradiction-probe #1).
+  if (registerForCreativeMode(mode) === "natural_phone_kol") {
+    return sceneItem.role === "hook"
+      ? "quiet platform-native bed starts under the first word"
+      : "low-volume social bed stays behind natural creator speech";
+  }
+  return "light low-volume music bed, no copyrighted melody, never louder than speech";
+}
+
+function sfxCueFor(sceneItem: ShortPipelineScenePlan, product: string): string {
+  if (sceneItem.role === "demo" || sceneItem.role === "proof") {
+    return `subtle real contact SFX for ${product} only when touch/action is visible`;
+  }
+  if (sceneItem.role === "payoff") {
+    return "small room-tone tail or soft resolve, no loud whoosh";
+  }
+  return "natural room tone, no distracting stings";
+}
+
+function nativeAudioPromptFor(input: {
+  readonly audio: string;
+  readonly voiceoverLine: string;
+  readonly musicCue: string;
+  readonly sfxCue: string;
+  readonly beatContract: ShortSeedanceShotBeatContract;
+}): string {
+  return compactLines([
+    input.audio,
+    `Native audio line: ${input.voiceoverLine}`,
+    `Music cue: ${input.musicCue}`,
+    `SFX cue: ${input.sfxCue}`,
+    `Audio job: ${input.beatContract.audioJob}`
+  ]);
+}
+
+function audioScriptFor(
+  input: ShortAgentGraphPlannerInput,
+  shots: readonly ShortSeedanceShotPrompt[]
+): readonly ShortSeedanceAudioScriptLine[] {
+  const languageHint = input.brandKitEvaluation?.language ?? "user-requested language";
+  const voiceStyle = channelVoiceStyle(input.channelStyleProfile) ?? input.brandKitEvaluation?.tone ?? (
+    input.viralIntelligence.nicheStrategy.creativeMode === "ugc_review"
+      ? "natural creator voice"
+      : "clear short-form narration"
+  );
+  return shots.map((shot) => ({
+    shotId: shot.shotId,
+    sceneId: shot.sceneId,
+    startSecond: shot.startSecond,
+    endSecond: shot.endSecond,
+    languageHint,
+    voiceStyle,
+    spokenLine: shot.voiceoverLine,
+    delivery: deliveryFor(shot.beatContract.act, shot.role),
+    musicCue: shot.musicCue,
+    sfxCue: shot.sfxCue,
+    externalTtsReady: true as const
+  }));
+}
+
+function deliveryFor(
+  act: ShortSeedanceProductionAct,
+  role: ShortPipelineScenePlan["role"]
+): string {
+  if (act === "opening") {
+    return "start immediately, natural and clear, no intro pause";
+  }
+  if (act === "payoff") {
+    return "slower final cadence, resolve the promise, do not add a new claim";
+  }
+  return role === "demo" || role === "proof"
+    ? "match speech rhythm to visible hand/product action"
+    : "keep speech conversational and paced for retention";
+}
+
+function seedanceReferenceHandleDiscipline(input: ShortAgentGraphPlannerInput): string {
+  const hasReferencePattern = Boolean(input.viralIntelligence.referenceVideoPattern || input.referenceVideoLearning);
+  const sourceVideoClause = hasReferencePattern
+    ? "Source-video @video handles may guide structure, pacing, camera grammar, acting energy, and payoff timing only."
+    : "If no @video source pattern exists, do not invent one.";
+  return [
+    "Reference handle discipline: when render routing exposes @image/@video/@audio handles, bind each handle by role before visual prose.",
+    "KOL/identity @image anchors and product @image anchors outrank @video trend/source handles, style references, camera references, and audio references.",
+    sourceVideoClause,
+    "Never let @video overwrite user KOL face, product geometry, background replacement, claim wording, audio, or CTA."
+  ].join(" ");
 }
 
 function stageRunsFor(input: {
@@ -882,6 +1212,43 @@ function actionFor(
   }
 }
 
+function shortDurationArcPrompt(
+  targetDurationSeconds: number,
+  scenes: readonly ShortPipelineScenePlan[]
+): string {
+  const roles = scenes.map((sceneItem) => sceneItem.role).join(" > ");
+  if (targetDurationSeconds <= 15) {
+    return `15s completion contract: first second must hook with problem/result promise; middle must show context plus demo/proof action; final seconds must show payoff/result/soft next step. Planned roles: ${roles}. Do not make three product-only macros.`;
+  }
+  if (targetDurationSeconds <= 30) {
+    return `Short pacing contract: complete hook, context, proof/demo, payoff, and soft next step inside ${targetDurationSeconds}s with visible information change every 1-3s. Planned roles: ${roles}.`;
+  }
+  return `Short pacing contract: every scene must move the viewer from hook to proof to payoff across ${targetDurationSeconds}s; avoid filler, repeated angles, and unresolved endings. Planned roles: ${roles}.`;
+}
+
+function timeboxedActionCueFor(
+  sceneItem: ShortPipelineScenePlan,
+  startSecond: number,
+  endSecond: number,
+  targetDurationSeconds: number
+): string {
+  const window = `${startSecond}-${endSecond}s of ${targetDurationSeconds}s`;
+  switch (sceneItem.role) {
+    case "hook":
+      return `Timing ${window}: opening act, show problem or payoff promise before 1s and end ready for proof.`;
+    case "problem":
+      return `Timing ${window}: setup act, make the friction human and specific, then point toward the product need.`;
+    case "proof":
+      return `Timing ${window}: proof act, show evidence or product behavior with visible state change.`;
+    case "demo":
+      return `Timing ${window}: demo act, include before-state, product contact/action, and after-state inside this beat.`;
+    case "offer":
+      return `Timing ${window}: decision act, make the next step feel earned by the proof, without a text card.`;
+    case "payoff":
+      return `Timing ${window}: ending act, resolve the hook with result/reaction/product-in-result frame and no new claim.`;
+  }
+}
+
 function visualPromptFor(
   sceneItem: ShortPipelineScenePlan,
   input: ShortAgentGraphPlannerInput,
@@ -890,6 +1257,9 @@ function visualPromptFor(
 ): string {
   const style = input.channelStyleProfile?.visualStyle ?? input.brandKitEvaluation?.visualStyle ?? input.intent.emotion.replace(/_/g, " ");
   const product = input.productBrief?.title ?? "operator-provided product or subject";
+  const realism = realismDirectionFor(sceneItem, input.viralIntelligence.nicheStrategy.creativeMode);
+  const texture = textureDirectionFor(sceneItem, input);
+  const ending = endingFrameFor(sceneItem, product);
   const channelAnchors = input.channelStyleProfile?.styleAnchors.length
     ? `Channel anchors: ${input.channelStyleProfile.styleAnchors.slice(0, 4).map((anchorItem) => `${anchorItem.kind}=${anchorItem.instruction}`).join(" ")}`
     : "";
@@ -899,7 +1269,10 @@ function visualPromptFor(
     action,
     channelAnchors,
     `Visual style: ${style}.`,
+    `Realism direction: ${realism}`,
+    `Physical detail: ${texture}`,
     `Scene direction: ${sceneItem.visualDirection}.`,
+    `Ending frame: ${ending}`,
     `Keep composition ${input.intent.aspectRatio}, no-visible-text safe, and product/subject consistent.`
   ]);
 }
@@ -911,12 +1284,12 @@ function audioForScene(
 ): string {
   const voice = tone ?? (mode === "ugc_review" ? "natural creator voice" : "clear commercial narration");
   if (sceneItem.role === "hook") {
-    return `${voice}; immediate spoken hook, light bed, no loud intro sting.`;
+    return `${voice}; immediate spoken hook, low-volume platform-native bed, believable room tone, no loud intro sting, no copyrighted music.`;
   }
   if (sceneItem.role === "payoff") {
-    return `${voice}; music resolves under the visual payoff, keep narration clean for TTS and avoid hard-sell CTA wording.`;
+    return `${voice}; music resolves under the visual payoff, keep narration clean for TTS, natural breathing cadence, avoid hard-sell CTA wording.`;
   }
-  return `${voice}; narration supports the visual proof, with subtle SFX only when it clarifies action.`;
+  return `${voice}; narration supports the visual proof, with subtle product/contact SFX only when it clarifies action and never covers speech.`;
 }
 
 function continuityFor(
@@ -926,12 +1299,42 @@ function continuityFor(
 ): string {
   const product = input.productBrief?.title ?? "main subject";
   if (index === 0) {
-    return `Establish ${product}, visual rhythm, lighting, and viewer problem for all following shots.`;
+    return `Establish ${product}, visual rhythm, lighting, creator eye-line, and viewer problem for all following shots.`;
   }
   if (sceneItem.role === "payoff") {
-    return `Return to ${product}, same visual identity, same claim policy, no text overlay.`;
+    return `Return to ${product}, same visual identity, same claim policy, coherent hand/face/wardrobe continuity, no text overlay.`;
   }
-  return `Preserve ${product}, brand tone, color palette, visual rhythm, and claim wording from prior shots.`;
+  return `Preserve ${product}, creator identity, brand tone, color palette, visual rhythm, and claim wording from prior shots.`;
+}
+
+function transitionBridgeFor(
+  sceneItem: ShortPipelineScenePlan,
+  input: ShortAgentGraphPlannerInput,
+  index: number
+): string {
+  const scenes = input.scenes;
+  const product = input.productBrief?.title ?? "main subject";
+  const previous = scenes[index - 1];
+  const next = scenes[index + 1];
+  const currentWindow = `${sceneItem.role} ${sceneItem.order}`;
+  const previousLine = previous
+    ? `Start as if cutting from ${previous.role}: keep ${product}, KOL face, hand position, lighting color, room tone, and screen direction continuous.`
+    : `Start with a clean handle: ${product} or viewer problem is readable immediately, with no dead air or slow logo lead-in.`;
+  const nextLine = next
+    ? `End by setting up ${next.role}: hold a stable product/KOL/result frame that can become the next clip first frame.`
+    : `End with a resolved last frame: ${product} or result remains visible, audio resolves, and no new claim appears.`;
+  const actionLine = sceneItem.role === "hook"
+    ? "The edit must feel like an intentional cold open, then hand off to proof without a jump."
+    : sceneItem.role === "payoff"
+      ? "The edit must close the arc and make the ending feel earned by earlier proof."
+      : "The edit must preserve motion direction and continue the viewer's information path without resetting the scene.";
+  return compactLines([
+    `Transition bridge for ${currentWindow}.`,
+    previousLine,
+    nextLine,
+    actionLine,
+    "Avoid boundary artifacts: sudden face/product drift, new background, color-temperature jump, mismatched hand pose, audio bed drop, or unrelated camera angle."
+  ]);
 }
 
 function negativeConstraintsFor(
@@ -940,6 +1343,7 @@ function negativeConstraintsFor(
 ): readonly string[] {
   return [
     ...GLOBAL_NEGATIVE_CONSTRAINTS,
+    "no waxy faces, frozen expressions, robotic gestures, floating products, impossible reflections, or unnatural hand-object contact",
     ...(sceneItem.claimIds.length > 0 ? ["do not strengthen claim language beyond approved claim inventory"] : []),
     ...(input.viralIntelligence.referenceVideoPattern ? ["do not recreate source-video identity, script, captions, music, or exact edit timing"] : [])
   ];
@@ -950,8 +1354,43 @@ function qualityChecksFor(sceneItem: ShortPipelineScenePlan): readonly string[] 
     "first frame is understandable without sound",
     "no visible text appears in the generated video",
     "visual action changes during the shot",
+    "human motion feels candid with believable micro-pauses and product contact",
+    "product shape, label, color, and size stay stable",
     sceneItem.claimIds.length > 0 ? "claim wording matches review inventory" : "no new claim introduced"
   ];
+}
+
+function realismDirectionFor(sceneItem: ShortPipelineScenePlan, mode: ShortViralCreativeMode): string {
+  if (mode === "ugc_review") {
+    return sceneItem.role === "hook"
+      ? "creator starts mid-action, quick eye-line to lens, one small handheld correction, natural blink, product enters frame from real hand"
+      : "creator moves like a real take: micro-pause before touching product, imperfect hand speed, visible contact, natural reaction";
+  }
+  if (mode === "cinematic") {
+    return "motivated premium motion with realistic texture, shallow depth, stable product geometry, no artificial gloss";
+  }
+  return "natural body mechanics, believable hand-object contact, clear product/result motion, no stiff staged posing";
+}
+
+function textureDirectionFor(sceneItem: ShortPipelineScenePlan, input: ShortAgentGraphPlannerInput): string {
+  const product = input.productBrief?.title ?? "product";
+  if (sceneItem.role === "proof" || sceneItem.role === "demo") {
+    return `show tactile evidence for ${product}: surface texture, contact shadow, tiny reflections, realistic hand pressure, and stable packaging geometry`;
+  }
+  if (sceneItem.role === "hook") {
+    return `make ${product} or the viewer problem readable in the first second with real lighting and non-perfect handheld framing`;
+  }
+  return `keep ${product} materially consistent with natural light, contact shadows, background depth, and no artificial labels`;
+}
+
+function endingFrameFor(sceneItem: ShortPipelineScenePlan, product: string): string {
+  if (sceneItem.role === "payoff") {
+    return `${product} remains visible with a calm human reaction and a usable last frame for chaining.`;
+  }
+  if (sceneItem.role === "demo" || sceneItem.role === "proof") {
+    return `end on the completed action, ${product} still visible, ready for last-frame continuity into the next shot.`;
+  }
+  return `end with motion still readable and ${product} or viewer tension visible, avoiding hard freeze or text overlay.`;
 }
 
 function audioPlanFor(mode: ShortViralCreativeMode, tone: string | undefined): string {

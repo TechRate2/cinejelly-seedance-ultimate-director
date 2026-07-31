@@ -160,7 +160,7 @@ async function waitForPrediction(predictionId: string, context: PollingContext):
 - Atlas result-route fallbacks are used only after earlier polling routes return 404/405, and mapped output URLs still flow through the same provider-neutral `Prediction` contract.
 - Atlas upload responses that provide a clean HTTPS URL but no separate asset ID can still feed the next generation request as a direct provider reference.
 - Mixed Atlas output URLs do not double the assembly clip count or shorten the final timeline through accidental still-image insertion.
-- `scripts/run-mixed-output-assembly-smoke.mjs` passes and writes no raw provider output URLs into its report.
+- `tests/run-mixed-output-assembly-smoke.mjs` passes and writes no raw provider output URLs into its report.
 - Review packet cost summary counts failed, timeout, and canceled provider operations.
 - No production import path references `external/upstream`.
 - Source lineage is added to `DEFAULT_SOURCE_LOGIC_TRANSLATIONS` after implementation.

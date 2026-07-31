@@ -5,6 +5,7 @@
 
 import type { PromptReference, PromptReferenceSelectionMetadata, ReferenceRole, ReferenceView } from "../types/prompt.js";
 import type { ProviderReference, ReferenceKind } from "../types/provider.js";
+import { uploadFileNameFromUri } from "../core/upload-reference.js";
 
 const REFERENCE_ROLES: readonly ReferenceRole[] = [
   "identity",
@@ -92,9 +93,14 @@ export class ReferenceLibrarian {
     const role = this.normalizeRole(payload.role, providerReference.kind);
     this.assertCompatible(role, providerReference.kind, index);
 
-    const label = this.cleanString(payload.label) || `${role}_${index + 1}`;
     const priority = payload.priority === "supporting" ? "supporting" : "primary";
     const selection = this.normalizeSelection(payload.selection, index);
+    // Fall back to the character id (a stable per-character identity) rather than a meaningless
+    // positional "identity_N", so the @image handle in the compiled prompt names WHICH character it
+    // is and the handle->named-subject link survives for multi-character shots (final-audit gap [2]).
+    const label = this.cleanString(payload.label)
+      || (selection?.characterId ? selection.characterId : undefined)
+      || `${role}_${index + 1}`;
 
     return {
       role,
@@ -210,6 +216,16 @@ export class ReferenceLibrarian {
       throw new Error(`Reference ${index + 1} URI points to a sensitive credential-like file.`);
     }
 
+    // upload:// handles are the UI's own confined uploads (resolved server-side to a local file
+    // whose BYTES are pushed to the provider — no host is ever fetched, so no SSRF surface). The
+    // upload feature wired plan/admission/provider but never taught THIS gate the scheme, so every
+    // customer render that attached a UI-uploaded photo died here at intake with "must use https
+    // or asset://" (deep-audit: primary upload flow structurally broken). uploadFileNameFromUri
+    // accepts ONLY a server-generated flat name (up_<hex>.<whitelisted-ext>) — no separators, no
+    // traversal, nothing else; any other upload:// shape falls through to the strict URL check.
+    if (uploadFileNameFromUri(uri) !== undefined) {
+      return;
+    }
     try {
       const parsed = new URL(uri);
       if (!["https:", "asset:"].includes(parsed.protocol)) {

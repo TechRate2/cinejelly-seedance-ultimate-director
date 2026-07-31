@@ -1,0 +1,40 @@
+{
+  "userInput": "[style:cinematic] Phim ngắn điện ảnh 18 giây, khung ngang: Hà Nội 5 giờ sáng dưới cơn mưa nhỏ, một bác chủ quán phở già (tự đặt tên, khoảng 60 tuổi, gương mặt khắc khổ nhưng hiền) lặng lẽ nhóm bếp than trong quán phở vỉa hè cũ kỹ. Mở đầu: hơi nước bốc lên từ nồi nước dùng hoà vào màn mưa, ánh đèn vàng hắt qua tấm bạt. Giữa phim: đôi bàn tay chai sạn thái hành, chan nước dùng nóng hổi vào bát phở đầu tiên trong ngày — động tác thành thục như một nghi lễ. Cao trào cảm xúc: vị khách đầu tiên (một cậu sinh viên ướt mưa) bưng bát phở, hơi nóng phả lên mặt, bác chủ quán nhìn cậu ăn và khoé mắt nheo lại thành nụ cười. Kết: máy quay lùi chậm ra ngoài màn mưa, quán phở nhỏ sáng ấm giữa phố vắng. Không thoại hoặc chỉ một câu rất ngắn; kể chuyện bằng hình ảnh, ánh sáng và hơi nước. Photoreal điện ảnh, chất phim, không nhìn ra AI.",
+  "settings": {
+    "durationTargetSeconds": 18,
+    "ratio": "16:9",
+    "resolution": "720p",
+    "qualityMode": "economy",
+    "audioMode": "hybrid",
+    "tier": "fast",
+    "maxCostUsd": 7
+  },
+  "metadata": {
+    "acceptanceBatch": "v2-fast",
+    "acceptanceCase": "cinema_pho_rain_18s",
+    "niche": "food_beverage",
+    "creativeMode": "cinematic",
+    "storyboardApproval": "operator_approved",
+    "storyboardReviewer": "operator-acceptance",
+    "storyboardReviewedAt": "2026-07-26T01:00:00.000Z",
+    "storyboardApprovalNotes": "Owner-approved acceptance render (fast tier) — cinematic register quality check."
+  },
+  "outputPath": "acceptance/cinema-18s/final.mp4",
+  "workDirectory": "acceptance/cinema-18s/work",
+  "artifactDirectory": "acceptance/cinema-18s/artifacts",
+  "semanticVisualInspectionOptions": {
+    "enabled": false,
+    "expectations": [
+      "guong mat bac chu quan nhat quan giua cac canh",
+      "anh sang dien anh am ap, mua va hoi nuoc ro rang",
+      "khong artifact AI lo lieu, tay khong bien dang"
+    ],
+    "maxFrames": 3
+  },
+  "frameSamplingOptions": {
+    "enabled": true,
+    "outputDirectory": "acceptance/cinema-18s/frames",
+    "intervalSeconds": 3,
+    "maxFrames": 6
+  }
+}

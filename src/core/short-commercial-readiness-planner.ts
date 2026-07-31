@@ -9,24 +9,19 @@ import type { ShortCommercialReadinessPlan, ShortCommercialReadinessCheck, Short
 import type { ShortPipelinePlan, ShortPipelinePlanInput, ProductUrlEvidenceStatus } from "../types/short-pipeline.js";
 import type { ShortReferenceVideoLearningInput } from "../types/short-viral-intelligence.js";
 import { createStableId } from "../utils/ids.js";
+import {
+  internalSourcePatternOrigins,
+  SHORT_COMMERCIAL_READINESS_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "hereandnowai/master-langgraph-workflows-in-python-20-real-world-agent-projects-by-hereandnow-ai",
-  "nirdiamant/genai_agents:ContentIntelligence",
-  "gswithjeff/autogen-multi-agent-workflow",
-  "Shubhamsaboo/awesome-llm-apps",
-  "YouMind-OpenLab/awesome-seedance-2-prompts",
-  "ZeroLu/awesome-seedance",
-  "calesthio/OpenMontage",
-  "vericontext/vibeframe"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(SHORT_COMMERCIAL_READINESS_SOURCE_PATTERN_IDS);
 
 const CRAWLER_DEFAULT_MAX_BYTES = 512_000;
 const CRAWLER_DEFAULT_TIMEOUT_MS = 10_000;
 
 export interface ShortCommercialReadinessPlannerInput {
   readonly plan: ShortPipelinePlanDraft;
-  readonly originalInput?: Pick<ShortPipelinePlanInput, "product" | "channelStyle" | "referenceVideoLearning">;
+  readonly originalInput?: Pick<ShortPipelinePlanInput, "product" | "channelStyle" | "mediaReferences" | "referenceVideoLearning">;
 }
 
 type ShortPipelinePlanDraft = Omit<ShortPipelinePlan, "commercialReadiness"> & Partial<Pick<ShortPipelinePlan, "commercialReadiness">>;
@@ -44,6 +39,7 @@ export class ShortCommercialReadinessPlanner {
       agentGraphCheck(plan),
       humanReviewCheck(plan),
       referenceOriginalityCheck(plan, referenceAnalysis.status),
+      mediaReferenceCheck(plan, input.originalInput?.mediaReferences?.length ?? 0),
       channelStyleMemoryCheck(plan),
       outcomeMemoryCheck(outcomeMemory.status, plan),
       crawlerPolicyCheck(crawlerPolicy.status, plan),
@@ -96,6 +92,74 @@ export class ShortCommercialReadinessPlanner {
       nextActions: nextActionsFor(status, checks, crawlerPolicy.status, referenceAnalysis.status, outcomeMemory.status)
     };
   }
+}
+
+function mediaReferenceCheck(plan: ShortPipelinePlanDraft, inputReferenceCount: number): ShortCommercialReadinessCheck {
+  const references = plan.mediaReferencePlan ?? [];
+  const blockedCount = references.filter((reference) => reference.status === "blocked").length;
+  const reviewCount = references.filter((reference) => reference.status === "review_required").length;
+  const readyCount = references.filter((reference) => reference.status === "ready").length;
+  const providerHandoffCount = references.filter((reference) => reference.includeInProviderHandoff).length;
+  const identityCount = references.filter((reference) => reference.promptRole === "identity").length;
+  const productCount = references.filter((reference) => reference.promptRole === "product").length;
+  const hasSourceVideo = references.some((reference) => reference.promptRole === "source_video_structure");
+  if (blockedCount > 0) {
+    return check(
+      "media_references",
+      "blocked",
+      0.22,
+      "One or more Short media references are unsafe, private, or credential-like.",
+      "Replace local/private/credential media references with approved asset:// IDs or clean HTTPS references before render.",
+      {
+        inputReferenceCount,
+        referenceCount: references.length,
+        blockedCount,
+        reviewCount,
+        readyCount,
+        providerHandoffCount
+      }
+    );
+  }
+  if (references.length === 0) {
+    return check(
+      "media_references",
+      "review_required",
+      0.66,
+      "Short can generate from text, but KOL/product/background references are not attached.",
+      "Attach approved KOL, product, first-frame, background, or source-video assets when identity/product fidelity matters.",
+      {
+        inputReferenceCount,
+        referenceCount: 0,
+        blockedCount: 0,
+        reviewCount: 0,
+        readyCount: 0,
+        providerHandoffCount: 0
+      }
+    );
+  }
+  const reviewRequired = reviewCount > 0 || providerHandoffCount < readyCount || hasSourceVideo;
+  return check(
+    "media_references",
+    reviewRequired ? "review_required" : "ready",
+    reviewRequired ? 0.74 : 0.9,
+    reviewRequired
+      ? "Media references are understood, but rights, source-video, or provider-asset handoff still needs review."
+      : "Approved media references are ready for role-scoped Seedance prompt binding.",
+    reviewRequired
+      ? "Approve rights and register clean HTTPS references as asset:// IDs before render handoff when persistence is required."
+      : "Keep reference roles, tags, and transfer scopes bound to every provider shot.",
+    {
+      inputReferenceCount,
+      referenceCount: references.length,
+      blockedCount,
+      reviewCount,
+      readyCount,
+      providerHandoffCount,
+      identityCount,
+      productCount,
+      sourceVideoReferencePresent: hasSourceVideo
+    }
+  );
 }
 
 function productEvidenceCheck(plan: ShortPipelinePlanDraft): ShortCommercialReadinessCheck {

@@ -37,6 +37,7 @@ const PRODUCTION_STAGE_STATUSES: readonly ProductionStageStatus[] = [
 ];
 
 export interface RenderJobStoredSummary {
+  readonly deliverableRelativePath?: string;
   readonly jobId: string;
   readonly clientId?: string;
   readonly requestId?: string;
@@ -116,14 +117,44 @@ export class RenderJobHistoryStore {
       throw new Error("Render job history file must be valid JSON.");
     }
     const history = this.historyFile(parsed);
-    return history.jobs
-      .map((job) => this.storedSummary(job))
+    // Parse each job record INDIVIDUALLY and drop the ones that fail validation (schema drift, a
+    // future status/stage not in the allowlist, corruption) instead of throwing the whole batch —
+    // one bad record must not make the entire customer job list unreadable (deep-audit MEDIUM).
+    const summaries: RenderJobStoredSummary[] = [];
+    for (const job of history.jobs) {
+      try {
+        summaries.push(this.storedSummary(job));
+      } catch {
+        // Skip this record; keep the rest.
+      }
+    }
+    return summaries
       .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
       .slice(0, this.historyLimit);
   }
 
   public save(summaries: readonly RenderJobSummary[]): void {
     const jobs = summaries
+      // The stored record persists only light fields (hasResult/hasCostLedger/hasArtifacts…
+      // booleans are computed upstream and survive as their own fields), yet the redaction walk
+      // below used to deep-scan the FULL result/artifacts/costLedger/artifactValidation payloads
+      // (100KB–1MB per job) through three regex passes and then discard them (durability-audit
+      // F4: per-persist event-loop stalls growing with retained bytes). Strip the heavy payloads
+      // BEFORE redaction — nothing persisted changes.
+      .map((summary) => {
+        const {
+          result: _result,
+          artifacts: _artifacts,
+          costLedger: _costLedger,
+          artifactValidation: _artifactValidation,
+          ...light
+        } = summary as RenderJobSummary & { readonly [key: string]: unknown };
+        void _result;
+        void _artifacts;
+        void _costLedger;
+        void _artifactValidation;
+        return light as unknown as RenderJobSummary;
+      })
       .map((summary) => this.publicStoredSummary(summary))
       .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
       .slice(0, this.historyLimit);
@@ -148,6 +179,7 @@ export class RenderJobHistoryStore {
       jobId: summary.jobId,
       ...(summary.clientId ? { clientId: summary.clientId } : {}),
       ...(summary.requestId ? { requestId: summary.requestId } : {}),
+      ...(summary.deliverableRelativePath ? { deliverableRelativePath: summary.deliverableRelativePath } : {}),
       status: summary.status,
       createdAt: summary.createdAt.toISOString(),
       updatedAt: summary.updatedAt.toISOString(),
@@ -209,6 +241,11 @@ export class RenderJobHistoryStore {
         : {}),
       ...(typeof payload.requestId === "string" && payload.requestId.trim()
         ? { requestId: this.requestId(payload.requestId) }
+        : {}),
+      ...(typeof payload.deliverableRelativePath === "string" &&
+      payload.deliverableRelativePath.trim() &&
+      !payload.deliverableRelativePath.includes("..")
+        ? { deliverableRelativePath: this.safeString(payload.deliverableRelativePath, "deliverableRelativePath") }
         : {}),
       status,
       createdAt: this.date(payload.createdAt, "createdAt"),
@@ -507,6 +544,7 @@ export class RenderJobHistoryStore {
       value === "running" ||
       value === "paused_for_review" ||
       value === "paused_for_revision" ||
+      value === "paused_for_operator" ||
       value === "blocked" ||
       value === "succeeded" ||
       value === "failed" ||
@@ -686,6 +724,12 @@ export class RenderJobHistoryStore {
 export function readRenderJobHistoryPath(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const value = env.CINEJELLY_API_JOB_HISTORY_PATH?.trim();
   if (!value) {
+    // Persist by default: a commercial customer's job list (and deliverable download
+    // links) must survive server restarts. Opt out explicitly with "off".
+    const outputDir = env.CINEJELLY_OUTPUT_DIR?.trim() || "assets/output_deliverables";
+    return `${outputDir}/render-jobs/job-history.json`;
+  }
+  if (value.toLowerCase() === "off" || value.toLowerCase() === "false" || value.toLowerCase() === "none") {
     return undefined;
   }
   if (CONTROL_CHARACTER_PATTERN.test(value)) {

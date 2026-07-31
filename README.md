@@ -1,69 +1,36 @@
 # CineJelly Seedance Ultimate Director
 
-Commercial agentic video production architecture for high-quality Seedance 2.0 workflows through Atlas Cloud.
+Agent làm video tự động bằng Seedance 2.0 (qua Atlas Cloud). Khách viết một câu hoặc tải ảnh lên,
+hệ thống tự viết kịch bản, vẽ khung hình đầu cho từng cảnh, render, lồng tiếng, ghép và giao MP4.
 
-## Status
+## 👉 Bắt đầu ở đây
 
-The repository contains a production-oriented TypeScript foundation. A short paid Atlas validation render has completed, automated artifact validation passes, and the clean release-candidate worktree passes the no-spend release audit. The project should still not be treated as open customer traffic until manual media review, redaction review, long-form/source-video/remote-stock/generated-audio validation, and production deployment hardening are complete.
+**[BAN-DO-DU-AN.md](BAN-DO-DU-AN.md)** — bản đồ dự án: chức năng nào nằm ở file nào, một lần
+render đi qua những bước gì, sửa chỗ nào cho việc gì, và những gì còn dang dở.
 
-- Atlas Cloud is the default provider target for both LLM reasoning and Seedance 2.0 rendering.
-- `src/` contains working foundations for the provider layer, structured LLM parsing, Reference Librarian validation and graph lineage, Atlas media upload/direct-reference handling, configurable render cost gating, prompt compilation, Production Graph planning and run-recording, continuity ledger generation, Consistency Guardian checks, director orchestration, assembly/postproduction engines, postproduction asset planning, generated-audio intent/execution planning, generated-audio output validation, batch reconciliation, optional batch artifact evidence, generated-audio asset resolution plus catalog preflight, Atlas generated-audio submit/poll execution behind capability and spend gates, and production HTTP API.
-- `validation:quality-benchmark` now supports optional structured semantic-review, audio-review, ASR/lip-sync runtime-review, governance-review, generated-audio validation, and long-form validation JSON checkpoints plus review-text redaction and a parity evidence matrix on top of artifact, media probe, sampled-frame, transition-boundary, audio waveform, and duration-sync proxy evidence; it remains no-spend/no-network and never claims full DirectorBench parity or customer-traffic readiness by itself.
-- Local Git Subtree snapshots of upstream projects are stored under `external/upstream/` for source-fidelity review, copy/adaptation, and product integration. Productized behavior should be copied or adapted into CineJelly-owned `src/`, `data/`, or `docs/` surfaces with attribution instead of depending on live upstream availability or importing directly from snapshots. Behavior-critical source logic should follow Faithful Logic Translation before production rewriting.
-- Faithful Logic Translation is now defined, but only per-logic implementation work can make a module source-faithful. Current source-inspired modules should be upgraded one at a time with Reference Implementations, lineage records, and validation checklists.
-- Quality mode now drives actual render behavior: Economy/Standard/High/Ultimate produce one to four Seedance candidates per shot, authorize zero to three targeted repair attempts, the Consistency Guardian selects the best candidate, and the Production Graph records selected, rejected, and repair candidate evidence.
-- The HTTP API now creates or accepts a sanitized request correlation ID and propagates it through JSON responses, render job summaries, provider metadata, Production Graph project metadata, and success/failure artifacts.
-- The API propagates client disconnects and deployment shutdown signals into active render work so request-bound orchestration, provider calls, polling, assembly, and postproduction stop as early as the selected provider path allows.
-- The assembly path materializes HTTPS provider clip URLs and remote audio tracks with bounded streaming downloads instead of loading whole rendered media into memory.
-- FFmpeg/FFprobe child-process stdout and stderr are capped so noisy media failures cannot exhaust API memory.
-- The planning path now emits and Guardian-validates a typed storyboard from shot contracts before render spend; storyboard panels and preflight evidence are stored in the Production Graph and durable artifacts.
-- The codebase now includes a MoneyPrinterTurbo-inspired, CineJelly-owned material sourcing planner that turns shot contracts into governed material briefs without importing upstream code or calling stock APIs directly.
-- An optional local material library adapter can fulfill those briefs from an operator-owned JSON catalog using safe `asset://` or credential-free HTTPS URIs; missing catalog configuration keeps the source-material stage explicitly planned-only.
-- Optional remote stock material adapters can fulfill briefs from Pexels, Pixabay, and commercially approved Coverr providers when explicitly enabled with provider keys; candidate URIs are filtered to credential-free HTTPS and still pass through centralized material validation.
-- Material source validation now checks adapter candidates against known briefs, approved source lists, remote-source policy, safe URIs, rights/attribution status, duration, aspect ratio, and resolution; planned-only runs remain explicit when no material adapter candidates are supplied.
-- Postproduction asset planning now classifies supplied caption cues, supplied audio tracks, and generated-audio intents into deterministic evidence before final assembly, writes `postproduction-assets.json`, maps generated-audio intents to verified provider capabilities when available, validates generated-audio provider results and result batches before they can become mix tracks, can resolve reviewed generated-audio `asset://` outputs into credential-free HTTPS mix inputs, validates an optional operator-owned generated-audio asset resolution catalog during preflight, and marks inconsistent caption/audio/generated-audio planning inputs as review-required instead of silently ignoring them; Atlas `xai/tts-v1` TTS submit/poll execution is wired behind verified capability, schema-review, budget, explicit spend, output validation, and manual-review gates, while BGM/ambience/SFX still require verified Atlas model mappings before use.
-- Long-form runs now emit a typed stage lifecycle for `plan`, `storyboard`, `prompt`, `source_material`, `render`, `inspect`, `repair`, `assemble`, and `deliver`; review packets and durable artifacts expose this evidence for operator review.
-- Async render jobs now retain bounded stage progress telemetry during execution: list responses expose compact current-stage fields, while per-job polling exposes retained stage progress events without local paths, secrets, inline media, or raw provider payloads.
-- Compact async job history now also retains a bounded provider checkpoint summary from cost-ledger entries, the provider reconciliation foundation can query active prediction IDs through the provider abstraction, and the provider handoff foundation can exercise local leases, a deployment-token-protected lease-service route, HTTPS external-lease action decisions, idempotent worker-action intent replay, local two-worker lease handoff after expiry, production HTTPS lease-service capture readiness, and live provider action evidence validation with retained-worker heartbeat evidence without storing raw provider payloads.
-- The codebase now includes source-translation lineage contracts and a redacted logging foundation for future Faithful Logic Translation work across providers, prompt compiler, graph planning, and guardian modules.
-- The intake path now supports a bounded `sourceVideoAnalysis` contract for VideoAgent/OpenMontage-style transcript, scene, keyframe, pacing, style, and safety deconstruction; Story Architect uses it as original structural guidance, and graph/artifacts preserve the source-video lineage.
-- An opt-in Source Video Auto Analysis Adapter can sample bounded frames from a clean HTTPS `source_video_structure` reference, ask the configured Atlas LLM for structural deconstruction, normalize the result through `SourceVideoAnalyst`, and keep local frame paths/base64 payloads out of returned analysis and artifacts.
-- Successful runs emit `review-packet.json`, a redacted commercial handoff summary that ties planning, render, cost, delivery, and QC evidence together.
-- Optional reference selection metadata for camera, composition, character, view, timeline index, and authorization is validated at API admission, preserved by the Reference Librarian, and consumed by deterministic reference selection before provider request compilation.
-- Normalized source-video scene/keyframe metadata now enriches exact keyframe URI references and matching source-video structure references with typed camera/composition/timeline/source-scene/source-keyframe hints for reference scoring.
-- A reusable Review/Approval System now evaluates scene, audio, caption, and claim checkpoints for `pre_render` and `pre_export` gates, maps them to `continue`, `paused_for_review`, `paused_for_revision`, `rejected`, or `blocked` lifecycle decisions, and refuses unsafe public review text or approvals without reviewer/timestamp evidence.
-- Async `POST /v1/render-jobs` now honors optional pre-render review checkpoints before provider spend and optional pre-export checkpoints after artifact validation: pending or revision-required jobs pause at the correct commercial gate, approved pre-render review queues the render and reserves quota, approved pre-export review releases the completed artifact for export without rerendering or reserving again, rejected jobs terminate, and blocked review evidence remains paused for correction.
-- Workspace/project billing policy is now an opt-in API gate: configured workspaces can bind client IDs, enabled projects, credits, per-request limits, monthly request/cost quotas, and a safe JSONL usage ledger; review-paused jobs validate workspace/project metadata without reserving spend until approval.
-- Atlas provider cost ledger entries now record actual retry counts for retryable LLM, Seedance, prediction polling, and media upload/direct-reference handling, with prediction polling tied back to the originating model and graph node when context is available.
-- Atlas prediction output mapping now tolerates nested provider response shapes such as `output`, `result`, `data`, `videos`, and file objects before declaring `OUTPUT_MISSING`, and prediction polling falls back from `/model/prediction/{id}` to Atlas result compatibility routes, including the documented `/model/getResult?predictionId=...`, only when earlier routes are unavailable.
-- Atlas HTTP timeout and abort paths now normalize into retryable `ProviderError` records with redacted reason details instead of leaking raw runtime errors through provider boundaries.
-- Atlas HTTP errors now preserve normalized status-based error codes even when the provider returns a non-JSON body, and non-JSON body previews are redacted before entering diagnostics.
-- Atlas JSON metadata responses are bounded by a configurable byte cap before parsing so abnormal provider responses cannot exhaust API memory.
-- Artifact manifests include per-file SHA-256 hashes for redacted JSON artifacts so production handoffs can verify file integrity after storage or transfer.
-- `npm.cmd run validate:artifacts -- <artifact-directory>` validates manifest integrity, required artifact presence, stage lifecycle, material rights briefs, optional generated-audio batch validation evidence, cost ledger shape, deliverable metadata, and secret/unsafe URI redaction after provider runs.
-- Synchronous render responses and async render jobs now validate their own success/failure artifacts immediately after API-owned artifact writes; sync responses include `artifactValidation`, compact job lists expose `artifactValidationStatus`, and per-job polling exposes validation checks without server-local artifact paths.
-- Failure artifacts keep stack-free redacted error name/message details so audit handoffs do not expose source or runtime paths.
-- API artifact bundle responses expose manifest entries and hashes without returning server-local artifact directories or manifest paths.
-- Public API JSON redaction now removes inline `data:` URIs so sampled frames or provider/debug payloads cannot leak as base64 response content.
-- Public API JSON redaction also removes non-HTTPS, embedded-credential, and signed/credential-query URIs while preserving clean `https://` and `asset://` values.
-- Final assembled videos record output byte size and streaming SHA-256 hashes in `deliverable.json` and `review-packet.json`.
-- Postproduction scales and pads non-adaptive outputs onto the selected aspect-ratio canvas before delivery validation.
-- Delivery Gate blocks final handoff when FFprobe metadata does not match the selected non-adaptive aspect ratio.
-- A production `npm run preflight` gate emits a redacted preflight report and exits non-zero when Atlas config, FFmpeg/FFprobe, output storage, or deployment knobs are not ready; `npm run validation:render-request -- --request <request-json>` validates an operator-supplied render request without provider spend, `npm run validation:readiness` and `GET /v1/validation-readiness` convert preflight into a Phase 6 operator-readiness report, and `npm run validation:paid-render -- --request <request-json> --confirm-paid-spend --atlas-billing-report <atlas-billing-report>` provides a readiness-gated paid-render validation harness that blocks before provider spend unless the operator passes the explicit spend-confirmation flag and a fresh Atlas billing-readiness report proves budget fit.
-- `npm run doctor` is the beginner-safe local check: it prepares `.env`, preserves existing secrets, detects media tools, runs the no-spend local smoke, summarizes readiness, and never runs paid Atlas rendering. `npm run validation:release-audit` is the strict Phase 6 hygiene gate; `npm run validation:business-readiness` is the commercial customer-traffic gate.
-- Async render submissions now enforce a configurable queued/running job limit before job creation, runtime initialization, or provider spend, and job listing returns queue telemetry for operators.
-- Async render submissions accept `Idempotency-Key` for retry-safe long-form job creation within retained in-process job history, preventing duplicate Atlas spend when clients retry the same payload.
-- Synchronous `/v1/render` now has its own in-process concurrency gate so request-bound renders cannot crowd out async long-form work.
-- Rate-limit and queue-saturation responses now include `Retry-After` plus a JSON `retryAfterSeconds` value for disciplined upstream retries.
-- Render POST request body size is configurable and oversized bodies are rejected with `413` before JSON parsing, queue admission, runtime creation, or provider spend.
-- API admission now validates nested caption, audio mix, frame sampling, semantic visual inspection, and transition option objects before runtime creation or provider spend.
-- Runtime preflight now verifies the configured/default output directory can be prepared and written before customer traffic.
-- The package declares `main`, `types`, and ESM `exports` for stable production imports from the built `dist/index.js` surface, including API, agents, core engines, providers, prompt compiler, and shared types.
-- No CineJelly-owned test, mock, demo, sample, or example files are part of the production runtime. Upstream snapshots may contain original upstream development files inside `external/upstream/`; those files become product material only after license/product review and an intentional copy/adapt step.
-- Runtime validation currently has real Atlas credentials, verified local FFmpeg/FFprobe access, a Phase 6 validation-readiness report at 59/60 pass with only the intentional mandatory-client-policy warning, one completed short paid Atlas render, no-spend client policy, deployment-readiness, billing/admin/quota, and production-operations evidence tooling, and a clean release-candidate release audit. Customer use is still blocked by full commercial evidence for a real HTTPS deployment, long-form/source-video/remote-stock/generated-audio paths, billing/admin operations, and production operations.
-- The repository now includes a production container packaging path (`Dockerfile`, `.dockerignore`, `docker-compose.yml`, and `deploy/Caddyfile`) plus `npm run validation:deployment-package`, which statically verifies the no-secret Docker build context, FFmpeg/FFprobe runtime installation, `/health` healthcheck, production API entrypoint, compose/Caddy HTTPS path, env template notes, and deployment docs before any real host is published.
+Đọc file đó trước. Nó viết cho cả chủ dự án (không đọc code) lẫn model AI được nhờ sửa code.
 
-Faithful Logic Translation foundations are implemented for Prompt Binding Plan, Guardian Repair Decision Provenance, Reference Selection Scoring, Reference Metadata Enrichment, Source Video Reference Metadata Enrichment, Source Video Auto Analysis Adapter, Provider Polling/Retry/Cost Fidelity, Long-Form Planning/Batch Workflow, Render Job Stage Progress Telemetry, Render Provider Reconciliation, Render Provider Handoff including protected lease service/action ledger/local two-worker validation/production capture runner/live action evidence validation, API Artifact Validation Evidence, API Client Policy And Quota Gate, Deployment Readiness Capture, Billing Admin Operations Evidence, Production Operations Evidence, Phase 6 Validation Readiness Report, Phase 6 Render Request Validation Contract, Phase 6 Paid Render Validation Runner, Business Readiness Audit, Media Tool Binary Resolution, Material Source Adapter Validation, Local Material Library Adapter, Remote Stock Material Adapter, Postproduction Asset Orchestration, Generated Audio Intent Planning, Generated Audio Execution Planner, Generated Audio Provider Execution Runner, Generated Audio Output Validation, Generated Audio Output Batch Validation, Generated Audio Batch Artifact Evidence including review-packet handoff evidence, Generated Audio Asset Resolution, Generated Audio Asset Resolution Catalog, and Generated Audio Provider Execution Contract. The next required phase is real provider validation using `docs/OPERATOR_RUNBOOK.md`.
+## Lệnh cần nhớ
+
+```bash
+npm test        # kiểm tra toàn bộ dự án — miễn phí, trả lời bằng tiếng Việt
+npm run setup   # cài đặt lần đầu, có hướng dẫn từng bước
+npm run doctor  # kiểm tra máy đã sẵn sàng chưa
+npm start       # bật máy chủ
+```
+
+`npm test` chạy 93 bài kiểm tra + 5 bài soi toàn dự án mà **không tốn một đồng nào**.
+Chạy nó sau mỗi lần sửa. Lệnh **duy nhất** tiêu tiền thật là `npm run validation:paid-render`.
+
+## Quy tắc bắt buộc
+
+- `src/core/` không đọc biến môi trường, không gọi mạng. Chỉ `src/providers/` được gọi internet.
+- Không tạo file test/mock/demo trong `src/` — bài kiểm tra sống ở `scripts/`.
+- Mọi cửa chặn phải chạy **trước** bước tốn tiền mà nó bảo vệ.
+- `external/upstream/` là repo tham khảo, không phải code chạy. Xem mục 7 của bản đồ để biết
+  repo nào được phép sao chép (7 repo MIT) và repo nào không (AGPL-3.0 + không giấy phép).
+
+---
 
 ## Product Goal
 
@@ -97,12 +64,11 @@ cinejelly-seedance-ultimate-director/
 |-- assets/
 |   |-- output_deliverables/
 |   `-- reference_inputs/
-|-- config/
-|-- data/
+|-- deploy/
 |-- docs/
 |-- external/
-|-- ops/
 |-- schemas/
+|-- scripts/
 `-- src/
     |-- agents/
     |-- api/
@@ -115,10 +81,11 @@ cinejelly-seedance-ultimate-director/
     `-- utils/
 ```
 
-`data/` is reserved for production-approved local knowledge artifacts such as copied/adapted prompt-pattern snapshots, bibles, and evaluation rubrics when they become necessary. `external/upstream/` contains legally bounded Git Subtree snapshots of upstream repositories; CineJelly uses them as source material, then productizes useful parts into `src/`, `data/`, and `docs/`. Production code must not import directly from `external/upstream/`; `src/` remains CineJelly-owned code written new or adapted into product-specific modules, not a drop zone for large upstream files.
+`assets/` is ignored runtime storage for real inputs, outputs, and validation evidence. `ops/` is an ignored operator-evidence directory created only when launch/billing/operations packets are promoted. A future `data/` directory is reserved for production-approved local knowledge artifacts such as copied/adapted prompt-pattern snapshots, bibles, and evaluation rubrics when they become necessary. `external/upstream/` contains legally bounded, pruned upstream source snapshots; CineJelly uses them as source material, then productizes useful parts into `src/`, future `data/`, and `docs/`. Production code must not import directly from `external/upstream/`; `src/` remains CineJelly-owned code written new or adapted into product-specific modules, not a drop zone for large upstream files.
 
 ## Documentation Map
 
+- `docs/DEVELOPER_OPERATOR_HANDOFF.vi.md`: one-page Vietnamese handoff for dev/operator source navigation, clean runtime boundaries, deploy config, and required validation commands.
 - `docs/PROJECT_CONTEXT.md`: compact project memory for token-efficient agent work.
 - `docs/ARCHITECTURE_SPEC.md`: full system architecture and agent responsibilities.
 - `docs/CREDITS.md`: attribution, source boundaries, and license cautions.
@@ -136,6 +103,7 @@ cinejelly-seedance-ultimate-director/
 - `docs/reference-implementations/deployment-container-packaging.md`: Docker packaging contract and no-spend package validator for repeatable HTTPS deployment preparation without baking secrets or artifacts into images.
 - `docs/BEGINNER_QUICKSTART.md`: shortest setup path for non-specialist operators, including automation boundaries and clean-source checks.
 - `docs/RUNNING_AND_MODEL_SETTINGS_GUIDE.md`: practical install, environment, model, API, settings, and no-UI runtime guide.
+- `docs/SOURCE_STRUCTURE_AND_DEPLOY_SECURITY.vi.md`: Vietnamese source map for runtime code, validation tooling, snapshots, real-mode operation, deploy boundaries, and clean-source policy.
 - `docs/SHORT_PIPELINE_AGENTIC_DESIGN.md`: short-form agentic pipeline design that keeps templates optional, chat natural, and human review explicit.
 - `docs/COMMERCIAL_READINESS_CHECKLIST.md`: commercial-core checklist for backend evidence, paid validation, operations, product scope, and UI readiness.
 - `docs/WORKSPACE_PROJECT_BILLING_FOUNDATION.md`: opt-in workspace/project quota, credit, reservation, and usage-ledger design for commercial backend boundaries.
@@ -395,6 +363,6 @@ Detailed milestones are tracked in `docs/IMPLEMENTATION_ROADMAP.md`; validation 
 
 ## Source Snapshot Strategy
 
-CineJelly is source-traceable and product-owned. It keeps full upstream snapshots under `external/upstream/` so engineers can check behavior against original sources, copy or adapt useful pieces, and then develop them into CineJelly-owned modules under `src/`, `data/`, and `docs/`. The current snapshot set includes `video-db/Director` under `external/upstream/director` for agentic chat/media workflow patterns, but the production implementation remains CineJelly's own product layer.
+CineJelly is source-traceable and product-owned. It keeps curated upstream source snapshots under `external/upstream/` so engineers can check behavior against original sources, copy or adapt useful pieces, and then develop them into CineJelly-owned modules under `src/`, `data/`, and `docs/`. The product repo intentionally prunes upstream tests, demos, examples, generated build folders, temporary files, notebooks, sample media, generated datasets, cache files, binary model weights, and vendored font/music resources; full raw upstream clones should live outside this repository when deeper legal/source review is needed. The current snapshot set includes `video-db/Director` under `external/upstream/director` for agentic chat/media workflow patterns, but the production implementation remains CineJelly's own product layer.
 
 Public source is not automatically unrestricted. MIT sources can be reused with attribution and notices, CC BY prompt content needs attribution review before bundled use, AGPL implementation code requires acceptance of AGPL obligations or legal approval, and no-license sources stay in the snapshot/audit layer until permission is clarified.

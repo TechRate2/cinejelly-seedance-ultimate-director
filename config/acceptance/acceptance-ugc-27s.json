@@ -1,0 +1,36 @@
+{
+  "userInput": "Video UGC 27 giay cho TikTok: nguoi sang tao review kem duong am cho da kho. Mo dau 3 giay dau bang khoanh khac dang thoa thu kem len mu ban tay, cam xuc chan that, phong cach quay dien thoai cam tay. Chung minh cong dung bang can canh ket cau kem tham vao da. Ket bang khuon mat hai long va loi khuyen ngan gon. Toan bo giu chat photoreal, khong nhin ra AI.",
+  "settings": {
+    "durationTargetSeconds": 27,
+    "ratio": "9:16",
+    "resolution": "1080p",
+    "qualityMode": "standard",
+    "audioMode": "hybrid",
+    "tier": "standard",
+    "maxCostUsd": 5
+  },
+  "metadata": {
+    "acceptanceBatch": "v1",
+    "acceptanceCase": "ugc_skincare_27s",
+    "niche": "beauty_skincare",
+    "creativeMode": "ugc_review"
+  },
+  "outputPath": "acceptance/ugc-27s/final.mp4",
+  "workDirectory": "acceptance/ugc-27s/work",
+  "artifactDirectory": "acceptance/ugc-27s/artifacts",
+  "semanticVisualInspectionOptions": {
+    "enabled": true,
+    "expectations": [
+      "khong lech mat nguoi",
+      "san pham khong meo mo",
+      "khong artifact AI lo lieu"
+    ],
+    "maxFrames": 3
+  },
+  "frameSamplingOptions": {
+    "enabled": true,
+    "outputDirectory": "acceptance/ugc-27s/frames",
+    "intervalSeconds": 4,
+    "maxFrames": 6
+  }
+}

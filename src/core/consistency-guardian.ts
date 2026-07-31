@@ -14,8 +14,16 @@ import type {
   RenderInspectionInput,
   StoryboardInspectionInput
 } from "../types/guardian.js";
+import { isImageOutputUrl } from "./endpoint-frame-chain.js";
 import type { PromptBindingConflict, PromptBindingPlan, ShotContract } from "../types/prompt.js";
+import type { SourceRepositoryId } from "../types/source-translation.js";
 import type { StoryboardPanel } from "../types/storyboard.js";
+import {
+  internalSourcePatternOrigin,
+  internalSourcePatternSnapshotPath
+} from "./private-source-pattern-registry.js";
+import { slopDensityScore } from "./anti-slop-lexicon.js";
+import { normalizeCharacterKey, splitCharacterIdentities } from "./keyframe-first-planner.js";
 
 export class ConsistencyGuardian {
   public inspectStoryboard(input: StoryboardInspectionInput): GuardianReport {
@@ -34,10 +42,163 @@ export class ConsistencyGuardian {
       ...this.validateBindingPlan(input.bindingPlan),
       ...this.validateContinuity(input),
       ...this.validatePromptDensity(input.prompt, input.negativePrompt),
+      ...this.validateAuthoredSlop(input.shot),
       ...this.validateTimeline(input.shot)
     ];
 
     return this.toReport(input.shot.shotId, "preflight", findings);
+  }
+
+  /**
+   * Video-level (cross-shot) consistency preflight, run once per render batch before spend.
+   * Per-shot preflight cannot see these: a character locked to DIFFERENT identity assets in
+   * different shots (face drift is guaranteed before any money is spent), identity locks fed
+   * from video sources instead of a still portrait, missing front-view anchors, and monotone
+   * framing across the batch that reads as a slideshow.
+   */
+  public inspectVideoConsistency(input: {
+    readonly projectId: string;
+    readonly shots: readonly ShotContract[];
+  }): GuardianReport {
+    const findings: GuardianFinding[] = [
+      ...this.validateCharacterLock(input.shots),
+      ...this.validateFramingVariety(input.shots)
+    ];
+    return this.toReport(input.projectId, "preflight", findings);
+  }
+
+  private validateCharacterLock(shots: readonly ShotContract[]): readonly GuardianFinding[] {
+    const findings: GuardianFinding[] = [];
+    const assetsByCharacter = new Map<string, Set<string>>();
+    const viewsByCharacter = new Map<string, Set<string>>();
+    const videoSourceCharacters = new Set<string>();
+
+    for (const shot of shots) {
+      for (const reference of shot.references) {
+        if (reference.role !== "identity") {
+          continue;
+        }
+        const characterKey = this.normalizedKey(reference.selection?.characterId ?? reference.label);
+        const assetKey = reference.providerReference.providerAssetId ?? reference.providerReference.uri;
+        const assets = assetsByCharacter.get(characterKey) ?? new Set<string>();
+        assets.add(assetKey);
+        assetsByCharacter.set(characterKey, assets);
+        const views = viewsByCharacter.get(characterKey) ?? new Set<string>();
+        views.add(reference.selection?.view ?? "unknown");
+        viewsByCharacter.set(characterKey, views);
+        if (reference.providerReference.kind === "video") {
+          videoSourceCharacters.add(characterKey);
+        }
+      }
+    }
+
+    for (const [characterKey, assets] of assetsByCharacter) {
+      if (assets.size > 1) {
+        findings.push({
+          stage: "preflight",
+          status: "repair",
+          severity: "S1",
+          checkpoint: "character_lock_asset_drift",
+          evidence: `Character "${characterKey}" is locked to ${assets.size} different identity assets across shots; the face will drift between clips.`,
+          repair: "Pin one canonical portrait asset per character and reuse it for every shot in the video."
+        });
+      }
+    }
+    for (const characterKey of videoSourceCharacters) {
+      findings.push({
+        stage: "preflight",
+        status: "repair",
+        severity: "S1",
+        checkpoint: "character_lock_still_source",
+        evidence: `Character "${characterKey}" uses a video as its identity lock; identity anchors need a sharp still portrait.`,
+        repair: "Replace the video identity reference with a sharp, front-facing still portrait."
+      });
+    }
+    for (const [characterKey, views] of viewsByCharacter) {
+      if (views.size > 0 && !views.has("front") && !views.has("unknown")) {
+        findings.push({
+          stage: "preflight",
+          status: "warn",
+          severity: "S2",
+          checkpoint: "character_lock_front_view",
+          evidence: `Character "${characterKey}" has no front-view identity portrait (views: ${[...views].sort().join(", ")}).`,
+          repair: "Add a sharp front-facing portrait as the primary identity anchor; side/back views alone lock identity poorly."
+        });
+      }
+    }
+
+    // Video-level coverage: shots demand identity continuity but the video anchors NO identity
+    // reference at all — the face is invented per clip and drifts silently. continuity.identity is
+    // a PROSE string ("preserve Linh — 23t..."), not a character list; the old loop iterated it
+    // character-by-character, minting one bogus "character" per LETTER and spamming warn noise on
+    // every multi-shot video (repo-fidelity audit, real bug). Matching prose to reference keys
+    // reliably is not possible here (characterId "linh_lead" vs prose "Linh"), so this check now
+    // claims only what it can prove: identity demanded somewhere + zero identity anchors anywhere.
+    const identityDemandShotCount = shots.filter((shot) => this.identityProse(shot.continuity.identity)).length;
+    if (identityDemandShotCount >= 2 && assetsByCharacter.size === 0) {
+      findings.push({
+        stage: "preflight",
+        status: "warn",
+        severity: "S2",
+        checkpoint: "character_lock_coverage",
+        evidence: `${identityDemandShotCount} shots demand identity continuity but the video carries no identity reference at all; each clip will invent its own face.`,
+        repair: "Attach one canonical portrait per recurring character so every shot renders the same face."
+      });
+    }
+    return findings;
+  }
+
+  private validateFramingVariety(shots: readonly ShotContract[]): readonly GuardianFinding[] {
+    const shotTypes = shots
+      .map((shot) => shot.metadata?.shotType)
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+    if (shotTypes.length < 3 || shotTypes.length !== shots.length) {
+      return [];
+    }
+    let repeatedAdjacentPairs = 0;
+    for (let index = 1; index < shotTypes.length; index += 1) {
+      if (shotTypes[index] === shotTypes[index - 1]) {
+        repeatedAdjacentPairs += 1;
+      }
+    }
+    const repeatRatio = repeatedAdjacentPairs / (shotTypes.length - 1);
+    if (repeatRatio > 0.5) {
+      return [
+        {
+          stage: "preflight",
+          status: "warn",
+          severity: "S2",
+          checkpoint: "slideshow_risk_monotone_framing",
+          evidence: `${repeatedAdjacentPairs} of ${shotTypes.length - 1} consecutive shot pairs share the same shot size; the video will read as a slideshow.`,
+          repair: "Vary the framing between consecutive shots (alternate close/medium/wide) or remove the pinned uniform shot grammar."
+        }
+      ];
+    }
+    return [];
+  }
+
+  /**
+   * continuity.identity is a prose STRING in production (ShotContinuity type); some older callers/
+   * fixtures pass an array of names — accept both so the check never crashes or letter-iterates.
+   */
+  private identityProse(value: unknown): string | undefined {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return trimmed || undefined;
+    }
+    if (Array.isArray(value)) {
+      const joined = value.filter((item): item is string => typeof item === "string").join(", ").trim();
+      return joined || undefined;
+    }
+    return undefined;
+  }
+
+  private normalizedKey(value: string): string {
+    return value
+      .normalize("NFKD")
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim()
+      .toLowerCase();
   }
 
   private validateStoryboardCoverage(input: StoryboardInspectionInput): readonly GuardianFinding[] {
@@ -230,6 +391,19 @@ export class ConsistencyGuardian {
         evidence: "Provider response did not include a usable output URL.",
         repair: "Block delivery and resubmit the shot after provider diagnostics."
       });
+    } else if (input.prediction.outputUrls.every((url) => isImageOutputUrl(url))) {
+      // A video shot that succeeded with ONLY image outputs (a poster/first-frame still, no video)
+      // cannot be assembled — without this it passes inspection, spends no repair attempt, and then
+      // throws at assembly AFTER every shot is charged (pre-spend final audit, LOW). Flag it for a
+      // repair pass so it retries or fails cleanly before the charge-consuming assembly step.
+      findings.push({
+        stage: "render",
+        status: "rerender",
+        severity: "S1",
+        checkpoint: "video_output_presence",
+        evidence: "Provider succeeded but returned only image outputs for a video shot; there is no assemblable video output.",
+        repair: "Rerender the shot — an image-only output cannot be assembled into video."
+      });
     }
 
     if (input.prediction.latencyMs && input.prediction.latencyMs > 20 * 60 * 1000) {
@@ -374,9 +548,17 @@ export class ConsistencyGuardian {
   private validateContinuity(input: PreflightInput): readonly GuardianFinding[] {
     const findings: GuardianFinding[] = [];
 
+    // Per-character matching (multi-face fix): the ledger's characterId is a normalized character
+    // key and its requiredReferenceLabels are that character's OWN labels — so a single-character
+    // shot (whose references were deliberately narrowed to its cast) is only required to carry the
+    // characters it actually names, never the absent character's labels.
+    const shotCharacterKeys = new Set(
+      splitCharacterIdentities(this.identityProse(input.shot.continuity.identity)).map((name) => normalizeCharacterKey(name)).filter(Boolean)
+    );
     for (const character of input.ledger.characters) {
-      const requiresCharacter = input.shot.continuity.identity?.includes(character.characterId);
-      if (!requiresCharacter) {
+      const characterKey = normalizeCharacterKey(character.characterId);
+      const requiresCharacter = characterKey.length > 0 && shotCharacterKeys.has(characterKey);
+      if (!requiresCharacter || character.requiredReferenceLabels.length === 0) {
         continue;
       }
       const labels = new Set(input.shot.references.map((reference) => reference.label));
@@ -387,8 +569,8 @@ export class ConsistencyGuardian {
           status: "repair",
           severity: "S1",
           checkpoint: "character_bible_reference",
-          evidence: `Missing character bible reference labels: ${missingLabels.join(", ")}.`,
-          repair: "Attach required character bible references before rendering."
+          evidence: `Shot names character "${character.identityDescription}" but is missing that character's reference labels: ${missingLabels.join(", ")}.`,
+          repair: "Attach the named character's bible reference before rendering."
         });
       }
     }
@@ -410,15 +592,66 @@ export class ConsistencyGuardian {
     return findings;
   }
 
+  /**
+   * Anti-slop enforcement (audit #2): the anti-slop lexicon was advice-only — antiSlopDirective tells
+   * the writer LLM to avoid filler, but nothing CHECKED the result, so "stunning, cinematic, 8K,
+   * masterpiece" in an authored field flowed to the provider unchallenged and pushed the render toward
+   * generic over-processed output. This scores the LLM-AUTHORED free-text fields (the fields the
+   * compiler quotes verbatim), NOT the assembled prompt — the assembled prompt legitimately contains
+   * register/section vocabulary ("Style register: professional cinematic") that would false-positive.
+   * Score-only WARN: deliberately no rewriting (a prior rewrite design broke grammar and blinded the
+   * style-bible drift check, per the lexicon's own module doc).
+   */
+  private validateAuthoredSlop(shot: ShotContract): readonly GuardianFinding[] {
+    const authored: readonly { readonly field: string; readonly text: string | undefined }[] = [
+      { field: "action", text: shot.action },
+      { field: "camera", text: shot.camera },
+      { field: "lighting", text: shot.lighting },
+      { field: "style", text: shot.style }
+    ];
+    const offenders: string[] = [];
+    let worst: "tighten" | "rewrite" | undefined;
+    for (const { field, text } of authored) {
+      if (!text?.trim()) {
+        continue;
+      }
+      const score = slopDensityScore(text);
+      if (score.verdict === "tighten" || score.verdict === "rewrite") {
+        offenders.push(`${field} (${score.slopCount} filler term${score.slopCount === 1 ? "" : "s"}, verdict ${score.verdict})`);
+        if (score.verdict === "rewrite" || worst === undefined) {
+          worst = score.verdict;
+        }
+      }
+    }
+    if (offenders.length === 0) {
+      return [];
+    }
+    return [
+      {
+        stage: "preflight",
+        status: "warn",
+        severity: worst === "rewrite" ? "S2" : "S3",
+        checkpoint: "authored_slop_density",
+        evidence: `LLM-authored shot fields carry generic filler that reads as AI slop: ${offenders.join("; ")}.`,
+        repair: "Regenerate the flagged fields with concrete cinematography (lens, angle, light direction, a number) instead of empty boosters."
+      }
+    ];
+  }
+
   private validatePromptDensity(prompt: string, negativePrompt: string): readonly GuardianFinding[] {
     const findings: GuardianFinding[] = [];
-    if (prompt.length > 2500) {
+    // The compiled anatomy runs ~5,000 chars BY DESIGN (register frame + continuity/runtime/boundary
+    // contracts the corpus prompts don't need). The old 2,500 threshold fired on EVERY prompt — an
+    // always-on warn trains operators to ignore warns. 6,000 fires only on genuine bloat; the CI
+    // regression lock (short-pipeline smoke) pins compiled lengths so the 9-11K catastrophe that
+    // wrecked the first paid runs can never creep back silently.
+    if (prompt.length > 6000) {
       findings.push({
         stage: "preflight",
         status: "warn",
         severity: "S2",
         checkpoint: "prompt_density",
-        evidence: `Prompt length is ${prompt.length} characters.`,
+        evidence: `Prompt length is ${prompt.length} characters — above the ~5K compiled anatomy; boilerplate is likely duplicated.`,
         repair: "Compress prompt to directorial essentials before rendering."
       });
     }
@@ -573,15 +806,15 @@ export class ConsistencyGuardian {
   ): readonly GuardianSourceCheckpoint[] {
     if (finding.checkpoint.startsWith("storyboard_")) {
       return [
-        this.vibeframeCheckpoint("validate storyboard artifacts before build/render", "src/core/consistency-guardian.ts"),
-        this.vimaxCheckpoint("track stale planning artifacts and regenerate only affected storyboard outputs", "src/core/consistency-guardian.ts")
+        this.storyboardVideoCheckpoint("validate storyboard artifacts before build/render", "src/core/consistency-guardian.ts"),
+        this.referenceConsistencyCheckpoint("track stale planning artifacts and regenerate only affected storyboard outputs", "src/core/consistency-guardian.ts")
       ];
     }
     if (finding.checkpoint.startsWith("binding_")) {
       return [
         {
-          sourceRepository: "Emily2040/seedance-2.0",
-          sourcePath: "external/upstream/seedance-2.0/references/reference-workflow.md",
+          sourceRepository: internalSourcePatternOrigin("emily_seedance_2") as SourceRepositoryId,
+          sourcePath: internalSourcePatternSnapshotPath("emily_seedance_2"),
           behavior: "repair prompt/reference binding before provider spend",
           cineJellyDestination: "src/core/consistency-guardian.ts"
         }
@@ -589,17 +822,17 @@ export class ConsistencyGuardian {
     }
     if (repairScope === "render" || repairScope === "delivery") {
       return [
-        this.vibeframeCheckpoint("inspect render output and repair only the affected scene or shot", "src/core/consistency-guardian.ts")
+        this.storyboardVideoCheckpoint("inspect render output and repair only the affected scene or shot", "src/core/consistency-guardian.ts")
       ];
     }
     if (repairScope === "reference_binding") {
       return [
-        this.vimaxCheckpoint("preserve consistency through bounded reference selection and repair", "src/core/consistency-guardian.ts")
+        this.referenceConsistencyCheckpoint("preserve consistency through bounded reference selection and repair", "src/core/consistency-guardian.ts")
       ];
     }
     if (repairScope === "prompt") {
       return [
-        this.vibeframeCheckpoint("repair prompt/build artifact before rerendering", "src/core/consistency-guardian.ts")
+        this.storyboardVideoCheckpoint("repair prompt/build artifact before rerendering", "src/core/consistency-guardian.ts")
       ];
     }
     return [
@@ -637,19 +870,19 @@ export class ConsistencyGuardian {
     }
   }
 
-  private vibeframeCheckpoint(behavior: string, cineJellyDestination: string): GuardianSourceCheckpoint {
+  private storyboardVideoCheckpoint(behavior: string, cineJellyDestination: string): GuardianSourceCheckpoint {
     return {
-      sourceRepository: "vericontext/vibeframe",
-      sourcePath: "external/upstream/vibeframe/README.md",
+      sourceRepository: internalSourcePatternOrigin("vericontext_vibeframe") as SourceRepositoryId,
+      sourcePath: internalSourcePatternSnapshotPath("vericontext_vibeframe"),
       behavior,
       cineJellyDestination
     };
   }
 
-  private vimaxCheckpoint(behavior: string, cineJellyDestination: string): GuardianSourceCheckpoint {
+  private referenceConsistencyCheckpoint(behavior: string, cineJellyDestination: string): GuardianSourceCheckpoint {
     return {
-      sourceRepository: "HKUDS/ViMax",
-      sourcePath: "external/upstream/vimax/agent_runtime/session_index.py",
+      sourceRepository: internalSourcePatternOrigin("hkuds_vimax") as SourceRepositoryId,
+      sourcePath: internalSourcePatternSnapshotPath("hkuds_vimax"),
       behavior,
       cineJellyDestination
     };

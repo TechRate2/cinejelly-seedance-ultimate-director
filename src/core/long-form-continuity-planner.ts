@@ -16,8 +16,12 @@ import type { ContinuityRisk, PromptReference, ShotContract } from "../types/pro
 import type { SourceVideoDeconstruction } from "../types/source-video.js";
 import { LongFormSequencePlanner } from "./long-form-sequence-planner.js";
 import type { BeatPlan } from "./shot-planner.js";
+import {
+  internalSourcePatternOrigins,
+  LONG_FORM_REVIEW_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = ["HKUDS/ViMax", "HKUDS/VideoAgent", "vericontext/vibeframe"] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(LONG_FORM_REVIEW_SOURCE_PATTERN_IDS);
 
 export class LongFormContinuityPlanner {
   private readonly sequencePlanner: LongFormSequencePlanner;
@@ -158,7 +162,10 @@ export class LongFormContinuityPlanner {
         ]).slice(0, 4);
     return {
       nextSequenceId: next.sequenceId,
-      bridgeIntent: `${current.closingBeat} -> ${next.openingBeat}`.slice(0, 320),
+      bridgeIntent: [
+        `${current.closingBeat} -> ${next.openingBeat}`,
+        "Preserve shared anchors, screen direction, camera momentum, lighting color, room tone, product/KOL scale, and endpoint action state so the sequence cut feels continuous."
+      ].join(". ").slice(0, 420),
       requiredAnchors
     };
   }

@@ -4,7 +4,7 @@
  */
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { ShortChannelStyleProfileEvaluator } from "../core/short-channel-style-profile.js";
 import type {
   ShortChannelStyleProfile,
@@ -12,6 +12,7 @@ import type {
 } from "../types/short-channel-style.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiLocalPaths } from "./api-response-redaction.js";
+import { retainNewestPerClient } from "./tenant-scoped-retention.js";
 
 export const SHORT_CHANNEL_STYLE_LIBRARY_SCHEMA_VERSION = "cinejelly.short-channel-style-library.v1";
 export const SHORT_CHANNEL_STYLE_LIBRARY_RECORD_SCHEMA_VERSION = "cinejelly.short-channel-style-library-record.v1";
@@ -27,6 +28,8 @@ const SECRET_QUERY_PATTERN =
   /([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\s]+/gi;
 const MAX_STYLE_RECORDS = 1_000;
 const DEFAULT_STYLE_RECORDS = 200;
+const DEFAULT_OUTPUT_DIR = "assets/output_deliverables";
+const DEFAULT_STYLE_LIBRARY_FILE = "short-channel-styles.json";
 
 export interface ShortChannelStyleLibraryRecord {
   readonly schemaVersion: typeof SHORT_CHANNEL_STYLE_LIBRARY_RECORD_SCHEMA_VERSION;
@@ -103,14 +106,18 @@ export class ShortChannelStyleLibraryStore {
       input: safeInput,
       profile
     };
-    const merged = [
-      record,
-      ...existing.filter((item) =>
-        !(item.profileId === record.profileId && item.clientId === record.clientId)
-      )
-    ]
-      .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
-      .slice(0, this.maxProfiles);
+    // Per-CUSTOMER retention. Trimming the global list to the newest N let one customer's writes
+    // evict every other customer's saved profiles — reproduced with a free account posting 205
+    // profiles in 2.7s, after which the victim's own profile returned 404.
+    const merged = retainNewestPerClient(
+      [
+        record,
+        ...existing.filter((item) =>
+          !(item.profileId === record.profileId && item.clientId === record.clientId)
+        )
+      ],
+      this.maxProfiles
+    );
     this.writeRecords(merged);
     return record;
   }
@@ -135,10 +142,13 @@ export class ShortChannelStyleLibraryStore {
       throw new Error("Short channel style library must be valid JSON.");
     }
     const storeFile = this.storeFile(parsed);
-    return storeFile.styles
-      .map((record) => this.storedRecord(record))
-      .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
-      .slice(0, this.maxProfiles);
+    // Per-CUSTOMER on the READ path too, and this is the more dangerous half: a global trim here
+    // hides other customers' records from every reader, and the next save then writes back only what
+    // was loaded — turning "invisible" into "permanently deleted".
+    return retainNewestPerClient(
+      storeFile.styles.map((record) => this.storedRecord(record)),
+      this.maxProfiles
+    );
   }
 
   public list(options: { readonly clientId?: string } = {}): readonly ShortChannelStyleLibrarySummary[] {
@@ -302,15 +312,21 @@ export class ShortChannelStyleLibraryStore {
   }
 }
 
-export function readShortChannelStyleLibraryPath(env: NodeJS.ProcessEnv): string | undefined {
+export function readShortChannelStyleLibraryPath(env: NodeJS.ProcessEnv): string {
   const configuredPath = env.CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH?.trim();
-  if (!configuredPath) {
-    return undefined;
-  }
-  if (CONTROL_CHARACTER_PATTERN.test(configuredPath)) {
+  const storePath = configuredPath || join(readShortChannelStyleOutputDir(env), DEFAULT_STYLE_LIBRARY_FILE);
+  if (CONTROL_CHARACTER_PATTERN.test(storePath)) {
     throw new Error("CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH must not contain control characters.");
   }
-  return configuredPath;
+  return storePath;
+}
+
+function readShortChannelStyleOutputDir(env: NodeJS.ProcessEnv): string {
+  const configuredOutputDir = env.CINEJELLY_OUTPUT_DIR?.trim() || DEFAULT_OUTPUT_DIR;
+  if (CONTROL_CHARACTER_PATTERN.test(configuredOutputDir)) {
+    throw new Error("CINEJELLY_OUTPUT_DIR must not contain control characters.");
+  }
+  return configuredOutputDir;
 }
 
 function scrubSensitiveStrings(value: unknown): unknown {

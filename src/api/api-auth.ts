@@ -6,12 +6,18 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 
-export type ApiAuthPrincipalKind = "public" | "auth_disabled" | "deployment" | "client";
+export type ApiAuthPrincipalKind = "public" | "auth_disabled" | "deployment" | "client" | "user";
 
 export interface ApiAuthPrincipal {
   readonly kind: ApiAuthPrincipalKind;
   readonly clientId?: string;
+  /** Present when kind is "user": the logged-in customer account. */
+  readonly userId?: string;
+  readonly userEmail?: string;
 }
+
+/** Resolves a presented session token to a logged-in customer, if valid. */
+export type ApiSessionResolver = (sessionToken: string) => { readonly userId: string; readonly email: string } | undefined;
 
 export interface ApiAuthDecision {
   readonly allowed: boolean;
@@ -30,6 +36,7 @@ export interface ApiAuthGuardSettings {
   readonly sharedKey?: string;
   readonly disabled?: boolean;
   readonly clientKeys?: readonly ApiAuthClientKey[];
+  readonly sessionResolver?: ApiSessionResolver;
 }
 
 const MIN_TOKEN_LENGTH = 24;
@@ -40,11 +47,13 @@ export class ApiAuthGuard {
   private readonly expectedKey: string | undefined;
   private readonly disabled: boolean;
   private readonly clientKeys: readonly ApiAuthClientKey[];
+  private readonly sessionResolver: ApiSessionResolver | undefined;
 
   public constructor(settings: ApiAuthGuardSettings = {}) {
     this.expectedKey = settings.sharedKey?.trim();
     this.disabled = Boolean(settings.disabled);
     this.clientKeys = settings.clientKeys ?? [];
+    this.sessionResolver = settings.sessionResolver;
   }
 
   public authorize(request: IncomingMessage, pathname: string): ApiAuthDecision {
@@ -53,6 +62,14 @@ export class ApiAuthGuard {
     }
     if (!pathname.startsWith("/v1/")) {
       return { allowed: true, principal: { kind: "public" } };
+    }
+    if (this.isPublicAccountEndpoint(pathname)) {
+      // Register/login are how customers obtain a session in the first place.
+      return { allowed: true, principal: { kind: "public" } };
+    }
+    const userPrincipal = this.userPrincipalFor(request);
+    if (userPrincipal) {
+      return { allowed: true, principal: userPrincipal };
     }
     if (!this.expectedKey && this.clientKeys.length === 0) {
       if (this.isPublicDiagnosticEndpoint(pathname)) {
@@ -89,6 +106,25 @@ export class ApiAuthGuard {
 
   private isPublicDiagnosticEndpoint(pathname: string): boolean {
     return pathname === "/v1/preflight" || pathname === "/v1/validation-readiness";
+  }
+
+  private isPublicAccountEndpoint(pathname: string): boolean {
+    return pathname === "/v1/account/register" || pathname === "/v1/account/login";
+  }
+
+  private userPrincipalFor(request: IncomingMessage): ApiAuthPrincipal | undefined {
+    if (!this.sessionResolver) {
+      return undefined;
+    }
+    const sessionHeader = request.headers["x-cinejelly-session"];
+    if (typeof sessionHeader !== "string" || !sessionHeader.trim()) {
+      return undefined;
+    }
+    const resolved = this.sessionResolver(sessionHeader.trim());
+    if (!resolved) {
+      return undefined;
+    }
+    return { kind: "user", userId: resolved.userId, userEmail: resolved.email };
   }
 
   private readPresentedKey(request: IncomingMessage): string | undefined {

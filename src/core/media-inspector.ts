@@ -19,6 +19,9 @@ import { runProcess } from "../utils/process.js";
 
 type JsonObject = Record<string, unknown>;
 
+/** Process-wide counter so concurrent same-millisecond frame samplings never collide. */
+let frameSampleSequence = 0;
+
 export class MediaInspector {
   public async probe(path: string, signal?: AbortSignal): Promise<MediaMetadata> {
     const result = await runProcess(
@@ -78,6 +81,18 @@ export class MediaInspector {
     if (videoStream && (!videoStream.width || !videoStream.height)) {
       findings.push("Video stream is missing width or height.");
     }
+    // Video-track truncation check (symmetric to the audio one): a container whose duration is padded
+    // by audio can hide a short/truncated VIDEO stream, so the gate would pass a video that visually
+    // ends early. Flag when the video stream runs materially shorter than the container (final
+    // live-audit gaps #7/#17). Only shorter-than-container matters (a longer video-track is benign).
+    if (
+      videoStream &&
+      metadata.durationSeconds &&
+      videoStream.durationSeconds &&
+      metadata.durationSeconds - videoStream.durationSeconds > 1.5
+    ) {
+      findings.push("Video stream duration is more than 1.5s shorter than the container; the video track may be truncated or corrupt.");
+    }
     if (audio.findings.length > 0) {
       findings.push(...audio.findings);
     }
@@ -98,7 +113,10 @@ export class MediaInspector {
       throw new Error("Frame sampling intervalSeconds and maxFrames must be positive.");
     }
     await ensureDirectory(options.outputDirectory);
-    const prefix = `frame_${Date.now()}`;
+    // Monotonic sequence keeps prefixes unique even when two samplings share the same
+    // millisecond and output directory (same-ms calls previously merged their files).
+    frameSampleSequence += 1;
+    const prefix = `frame_${Date.now()}_${frameSampleSequence}`;
     const pattern = join(options.outputDirectory, `${prefix}_%03d.jpg`);
     await runProcess(
       readMediaToolCommand("ffmpeg"),

@@ -1,0 +1,40 @@
+{
+  "userInput": "Video 18 giây kiểu idol tự quay bằng điện thoại cho TikTok: một cô gái Việt xinh xắn kiểu hot girl (tự đặt tên, khoảng 20-24 tuổi) selfie cầm tay trong phòng ngủ ánh sáng cửa sổ buổi sáng, review thỏi son dưỡng màu hồng đào cô vừa mua. Mở đầu phải là khoảnh khắc thật đang bôi son dở + một câu hook nói thẳng vào camera gây tò mò trong 1.5 giây đầu. Giữa video: cận cảnh chất son mềm lướt trên môi, biểu cảm thích thú thật sự, nói chuyện tự nhiên như tâm sự với bạn thân (giọng miền Nam trẻ trung, có nhé/nha/luôn á). Kết: nghiêng đầu cười, câu chốt ngắn khiến người xem muốn thử. Toàn bộ phải photoreal như clip điện thoại thật, tuyệt đối không nhìn ra AI, không lệch mặt, son không méo mó.",
+  "settings": {
+    "durationTargetSeconds": 18,
+    "ratio": "9:16",
+    "resolution": "720p",
+    "qualityMode": "economy",
+    "audioMode": "hybrid",
+    "tier": "fast",
+    "maxCostUsd": 7
+  },
+  "metadata": {
+    "acceptanceBatch": "v2-fast",
+    "acceptanceCase": "idol_phone_lipbalm_18s",
+    "niche": "beauty_skincare",
+    "creativeMode": "ugc_review",
+    "storyboardApproval": "operator_approved",
+    "storyboardReviewer": "operator-acceptance",
+    "storyboardReviewedAt": "2026-07-26T01:00:00.000Z",
+    "storyboardApprovalNotes": "Owner-approved acceptance render (fast tier) — idol phone-KOL quality check."
+  },
+  "outputPath": "acceptance/idol-18s/final.mp4",
+  "workDirectory": "acceptance/idol-18s/work",
+  "artifactDirectory": "acceptance/idol-18s/artifacts",
+  "semanticVisualInspectionOptions": {
+    "enabled": false,
+    "expectations": [
+      "khuon mat co gai nhat quan giua cac canh, khong lech mat",
+      "thoi son khong meo mo, mau hong dao dong nhat",
+      "trong nhu clip dien thoai that, khong artifact AI lo lieu"
+    ],
+    "maxFrames": 3
+  },
+  "frameSamplingOptions": {
+    "enabled": true,
+    "outputDirectory": "acceptance/idol-18s/frames",
+    "intervalSeconds": 3,
+    "maxFrames": 6
+  }
+}

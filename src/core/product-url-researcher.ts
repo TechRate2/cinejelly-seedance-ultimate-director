@@ -9,13 +9,15 @@ import type {
   ProductUrlSnapshotInput,
   ProductUrlSourceEvidence
 } from "../types/short-pipeline.js";
+import { internalSourcePatternOrigins } from "./private-source-pattern-registry.js";
+import { isLocalHost, hostnameResolvesToPrivate, ssrfSafeFetch } from "../utils/ssrf-guard.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "calesthio/OpenMontage",
-  "HKUDS/VideoAgent",
-  "video-db/Director",
-  "vericontext/vibeframe"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins([
+  "calesthio_openmontage",
+  "hkuds_videoagent",
+  "video_db_director",
+  "vericontext_vibeframe"
+]);
 
 const UNSAFE_QUERY_PATTERN = /token|signature|sig|key|apikey|api_key|secret|password|auth|credential|expires|policy/i;
 const DEFAULT_MAX_BYTES = 512_000;
@@ -27,6 +29,7 @@ export type ProductUrlResearchStatus =
   | "ready"
   | "blocked_by_live_network_confirmation"
   | "blocked_by_unsafe_url"
+  | "blocked_unsafe_redirect"
   | "fetch_failed"
   | "unsupported_content_type"
   | "response_too_large"
@@ -81,6 +84,8 @@ export interface ProductUrlResearchResult {
 interface ResponseLike {
   readonly ok: boolean;
   readonly status: number;
+  /** Final URL after any redirects (used to re-validate the destination host). */
+  readonly url?: string;
   readonly headers: {
     get(name: string): string | null;
   };
@@ -130,7 +135,9 @@ export class ProductUrlResearcher {
         issues: ["Product URL must be clean HTTPS with no local host, embedded credentials, or credential-like query values before live extraction."]
       });
     }
-
+    // SSRF note: the DNS-resolution guard (reject a public host that resolves to a private IP)
+    // lives in the real network layer (globalFetch), so it protects live fetches without
+    // running a real DNS lookup on the injected fake fetch used by no-spend tests.
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -143,6 +150,33 @@ export class ProductUrlResearcher {
           "User-Agent": "CineJellyProductResearch/1.0"
         }
       });
+      // Re-validate the FINAL URL after redirects: hygiene ran only on the original URL,
+      // so a public page 302-ing to an internal/metadata host (or downgrading to http)
+      // would otherwise be fetched and its body extracted. Block it before reading any body.
+      const finalUrlRaw = typeof response.url === "string" && response.url ? response.url : input.productUrl.trim();
+      let finalUrlHostUnsafe = false;
+      try {
+        const finalParsed = new URL(finalUrlRaw);
+        finalUrlHostUnsafe =
+          finalParsed.protocol !== "https:" ||
+          isLocalHost(finalParsed.hostname) ||
+          Boolean(finalParsed.username) ||
+          Boolean(finalParsed.password) ||
+          // DNS-resolve the POST-redirect host too: a public-looking domain can 302 to an
+          // internal host whose A record is private, which the string-only checks above miss.
+          (await hostnameResolvesToPrivate(finalParsed.hostname));
+      } catch {
+        finalUrlHostUnsafe = true;
+      }
+      if (finalUrlHostUnsafe) {
+        return this.result({
+          status: "blocked_unsafe_redirect",
+          fetchedAt,
+          source,
+          fetch: { attempted: true, statusCode: response.status, byteCount: 0, maxBytes, truncated: false },
+          issues: ["Product URL redirected to an unsafe or non-public destination; extraction was blocked before reading the body."]
+        });
+      }
       const contentType = cleanText(response.headers.get("content-type") ?? undefined, 160);
       if (!response.ok) {
         return this.result({
@@ -560,6 +594,18 @@ function stripTags(html: string): string {
   return decodeHtml(html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
 }
 
+/** Guard String.fromCodePoint against out-of-range values (a hostile entity would throw). */
+function safeCodePoint(code: number, original: string): string {
+  if (!Number.isInteger(code) || code < 0 || code > 0x10ffff) {
+    return original;
+  }
+  try {
+    return String.fromCodePoint(code);
+  } catch {
+    return original;
+  }
+}
+
 function decodeHtml(value: string): string {
   return value
     .replace(/&nbsp;/gi, " ")
@@ -568,8 +614,8 @@ function decodeHtml(value: string): string {
     .replace(/&#39;/gi, "'")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
-    .replace(/&#(\d+);/g, (_match, code) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_match, code) => String.fromCodePoint(Number.parseInt(code, 16)));
+    .replace(/&#(\d+);/g, (match, code) => safeCodePoint(Number(code), match))
+    .replace(/&#x([0-9a-f]+);/gi, (match, code) => safeCodePoint(Number.parseInt(code, 16), match));
 }
 
 function cleanHttpsUrl(value: string | undefined, baseUrl: string): string | undefined {
@@ -654,6 +700,8 @@ function nextActionsFor(status: ProductUrlResearchStatus): readonly string[] {
       return ["Set confirmLiveNetwork=true only after the operator approves fetching the clean public product URL."];
     case "blocked_by_unsafe_url":
       return ["Provide a canonical clean HTTPS product URL without credentials, local hosts, or credential-like query values."];
+    case "blocked_unsafe_redirect":
+      return ["The product URL redirected to a non-public or non-HTTPS destination; provide a direct canonical HTTPS product URL that does not redirect off the public web."];
     case "fetch_failed":
       return ["Check the product page availability or provide a reviewed product snapshot manually."];
     case "unsupported_content_type":
@@ -713,10 +761,8 @@ function safeErrorMessage(error: unknown): string {
   return message.replace(/[A-Za-z]:\\|\\\\|\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/|https?:\/\/\S+|bearer\s+\S+|api[_-]?key\s*[:=]\s*\S+|token\s*[:=]\s*\S+/gi, "[redacted]");
 }
 
-function isLocalHost(hostname: string): boolean {
-  const lower = hostname.toLowerCase();
-  return lower === "localhost" || lower === "127.0.0.1" || lower === "::1" || lower.endsWith(".local");
-}
+// SSRF host classification (isLocalHost / hostnameResolvesToPrivate, with IPv4-mapped-IPv6 + CIDR
+// hardening) is shared from ../utils/ssrf-guard.js so the guard logic lives in exactly one place.
 
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -728,5 +774,11 @@ async function globalFetch(url: string, init: {
   readonly signal: AbortSignal;
   readonly headers: Record<string, string>;
 }): Promise<ResponseLike> {
-  return fetch(url, init);
+  // SSRF hardening at the network boundary. redirect:"follow" is UNSAFE here — a public-looking
+  // page can 302 to an internal host and the request to that host is issued before any post-fetch
+  // check sees it (security audit). ssrfSafeFetch re-validates EVERY hop (https + public DNS)
+  // with redirect:"manual" before issuing it — the same guard audio-mix/assembly already use.
+  const { redirect: _redirect, ...safeInit } = init;
+  void _redirect;
+  return ssrfSafeFetch(url, safeInit, { label: "Product URL" });
 }

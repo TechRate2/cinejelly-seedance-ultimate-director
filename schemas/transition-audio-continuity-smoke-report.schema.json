@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/transition-audio-continuity-smoke-report.schema.json",
+  "title": "CineJelly Transition Audio Continuity Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "transition",
+    "outputInspection",
+    "checks",
+    "releaseGateSummary"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.transition-audio-continuity-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 3,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outputPath",
+        "syntheticClipCount",
+        "sourceAudioClipCount",
+        "silentSourceClipCount",
+        "transitionKind",
+        "transitionDurationSeconds",
+        "boundaryPlanCount"
+      ],
+      "properties": {
+        "outputPath": { "$ref": "#/$defs/repoPath" },
+        "syntheticClipCount": { "const": 3 },
+        "sourceAudioClipCount": { "const": 2 },
+        "silentSourceClipCount": { "const": 1 },
+        "transitionKind": {
+          "enum": [
+            "auto",
+            "fade",
+            "dissolve",
+            "fadeblack",
+            "fadewhite",
+            "hblur",
+            "zoomin",
+            "wipeleft",
+            "wiperight",
+            "wipeup",
+            "wipedown",
+            "slideleft",
+            "slideright",
+            "slideup",
+            "slidedown",
+            "smoothleft",
+            "smoothright",
+            "circleopen",
+            "circleclose"
+          ]
+        },
+        "transitionDurationSeconds": { "type": "number", "exclusiveMinimum": 0, "maximum": 3 },
+        "boundaryPlanCount": { "const": 2 }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transitionCount",
+        "boundaryPlans",
+        "usedAudioCrossfade",
+        "audioPreservationMode",
+        "silentAudioFillCount",
+        "targetHeight",
+        "targetRatio"
+      ],
+      "properties": {
+        "transitionCount": { "const": 2 },
+        "boundaryPlans": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "boundaryIndex",
+              "kind",
+              "durationSeconds",
+              "offsetSeconds",
+              "hasIntent",
+              "reasonCodes"
+            ],
+            "properties": {
+              "boundaryIndex": { "type": "integer", "minimum": 0, "maximum": 1 },
+              "kind": {
+                "enum": [
+                  "fade",
+                  "dissolve",
+                  "fadeblack",
+                  "fadewhite",
+                  "hblur",
+                  "zoomin",
+                  "wipeleft",
+                  "wiperight",
+                  "wipeup",
+                  "wipedown",
+                  "slideleft",
+                  "slideright",
+                  "slideup",
+                  "slidedown",
+                  "smoothleft",
+                  "smoothright",
+                  "circleopen",
+                  "circleclose"
+                ]
+              },
+              "durationSeconds": { "type": "number", "exclusiveMinimum": 0, "maximum": 3 },
+              "offsetSeconds": { "type": "number", "minimum": 0 },
+              "hasIntent": { "const": true },
+              "reasonCodes": {
+                "type": "array",
+                "minItems": 2,
+                "items": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        },
+        "usedAudioCrossfade": { "const": true },
+        "audioPreservationMode": { "const": "crossfade_with_silence_fill" },
+        "silentAudioFillCount": { "const": 1 },
+        "targetHeight": { "enum": [480, 720, 1080, 1440] },
+        "targetRatio": { "enum": ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"] }
+      }
+    },
+    "outputInspection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "videoStreamCount",
+        "audioStreamCount",
+        "audio"
+      ],
+      "properties": {
+        "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "videoStreamCount": { "const": 1 },
+        "audioStreamCount": { "const": 1 },
+        "audio": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["hasAudio", "findingCount"],
+          "properties": {
+            "hasAudio": { "const": true },
+            "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+            "sampleRate": { "type": "integer", "minimum": 8000 },
+            "channelCount": { "type": "integer", "minimum": 1 },
+            "findingCount": { "const": 0 }
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 7,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsNoSpendTransitionAudioEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsNoSpendTransitionAudioEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 360,
+      "not": {
+        "anyOf": [
+          { "pattern": "^[A-Za-z]:\\\\" },
+          { "pattern": "^/" },
+          { "pattern": "https?://" },
+          { "pattern": "\\.\\.(/|\\\\)" }
+        ]
+      }
+    }
+  }
+}

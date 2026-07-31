@@ -69,6 +69,58 @@ function printSmokeSummary() {
   console.log("\n[doctor] No paid Atlas render was run.");
 }
 
+// Live Atlas key + model check — a NO-SPEND GET /models (never a paid generation). This is what turns
+// "doctor said PASS" into a real guarantee: a wrong/expired key or a model that doesn't exist on the
+// Atlas account is caught HERE, in plain Vietnamese, instead of only when the first customer render fails.
+// Fails OPEN on a network problem (warn, not fail) so an offline machine can still run the rest of doctor.
+async function runAtlasLiveProbe() {
+  console.log("\n[doctor] Kiểm tra key + model Atlas (KHÔNG tốn tiền — chỉ gọi danh sách model GET /models)");
+  let atlasCloud;
+  let validateConfiguredAtlasModels;
+  try {
+    const runtimeConfig = await import("../dist/config/runtime-config.js");
+    const modelPreflight = await import("../dist/application/atlas-model-preflight.js");
+    atlasCloud = runtimeConfig.loadRuntimeSettings(process.env).atlasCloud;
+    validateConfiguredAtlasModels = modelPreflight.validateConfiguredAtlasModels;
+  } catch {
+    console.log("  ⚠️  Bỏ qua: chưa build được mã nguồn. Chạy `npm run build` rồi thử lại.");
+    return "warn";
+  }
+  if (!atlasCloud?.apiKey?.trim()) {
+    console.log("  ⚠️  Chưa có ATLASCLOUD_API_KEY (preflight đã báo). Điền key vào .env rồi chạy lại.");
+    return "warn";
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  let result;
+  try {
+    result = await validateConfiguredAtlasModels(atlasCloud, controller.signal);
+  } catch {
+    console.log("  ⚠️  Không gọi được Atlas để kiểm tra (lỗi mạng?). Thử lại khi có mạng.");
+    return "warn";
+  } finally {
+    clearTimeout(timer);
+  }
+  if (result.keyAuthFailed) {
+    console.log("  ❌ ATLASCLOUD_API_KEY SAI hoặc HẾT HẠN (Atlas trả 401/403).");
+    console.log("     → Vào Atlas Cloud tạo API key mới, dán vào dòng ATLASCLOUD_API_KEY trong .env, khởi động lại.");
+    return "fail";
+  }
+  if (result.missing.length > 0) {
+    console.log("  ❌ Có model KHÔNG tồn tại trên tài khoản Atlas của bạn:");
+    for (const item of result.missing) {
+      console.log(`     - ${item.field} = "${item.modelId}"  → sửa tên model ở .env (hoặc Cấu hình → Model)`);
+    }
+    return "fail";
+  }
+  if (result.probeSkipped) {
+    console.log("  ⚠️  Không kết nối được Atlas để kiểm key/model (lỗi mạng?). Thử lại khi có mạng.");
+    return "warn";
+  }
+  console.log(`  ✅ Key Atlas HỢP LỆ và ${result.checkedModelCount} model đã cấu hình đều tồn tại.`);
+  return "ok";
+}
+
 async function main() {
   console.log("CineJelly doctor");
   console.log("----------------");
@@ -78,11 +130,23 @@ async function main() {
   await runNpmStep("Run local no-spend smoke", ["run", "validation:local-smoke"]);
   printSmokeSummary();
 
+  const atlasStatus = await runAtlasLiveProbe();
+  if (atlasStatus === "fail") {
+    console.log(
+      "\n[doctor] ❌ CÓ VẤN ĐỀ VỚI KEY/MODEL ATLAS (xem ở trên). Sửa TRƯỚC khi mời khách — nếu không, KHÁCH TẠO VIDEO SẼ LỖI."
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   console.log("\n[doctor] PASS. Follow docs/OPERATOR_RUNBOOK.md before any paid Atlas validation.");
+  if (atlasStatus === "warn") {
+    console.log("[doctor] Lưu ý: chưa kiểm tra được key/model Atlas trực tiếp (thiếu key hoặc lỗi mạng) — chạy lại khi có key + mạng.");
+  }
 }
 
 main().catch((error) => {
   console.error(`\n[doctor] FAIL: ${error instanceof Error ? error.message : String(error)}`);
-  console.error("[doctor] Next: fix the reported setup/preflight issue, then rerun npm.cmd run doctor.");
+  console.error("[doctor] Next: fix the reported setup/preflight issue, then rerun npm run doctor.");
   process.exitCode = 1;
 });

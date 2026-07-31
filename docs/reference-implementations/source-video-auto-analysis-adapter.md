@@ -82,7 +82,7 @@ async function prepareRequestWithAutoSourceVideoAnalysis(request, analyzer, sett
   - `CINEJELLY_SOURCE_VIDEO_ANALYSIS_FAIL_ON_ERROR`
 - Done: wire the analyzer into `DirectorAgent` before `IntakeDirector.intake`.
 - Done: keep `SourceVideoAnalyst.normalize` as the final normalization gate.
-- Done: add `scripts/run-source-video-auto-analysis-smoke.mjs` and `npm.cmd run validation:source-video-auto-analysis-smoke` to prove disabled/no-overwrite/unsafe-skip/success/leak-guard/strict-failure behavior without Atlas, FFmpeg, or source-video fetches.
+- Done: add `tests/run-source-video-auto-analysis-smoke.mjs` and `npm.cmd run validation:source-video-auto-analysis-smoke` to prove disabled/no-overwrite/unsafe-skip/success/leak-guard/strict-failure behavior without Atlas, FFmpeg, or source-video fetches.
 - Done: add `schemas/source-video-auto-analysis-smoke-report.schema.json`, report-contract semantic validation, and commercial launch doctor coverage for the no-spend smoke.
 - Done: add `docs/reference-implementations/source-video-auto-analysis-validation-runner.md` plus a CLI/report gate for live validation evidence.
 

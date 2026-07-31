@@ -1,4 +1,9 @@
 # Running And Model Settings Guide
+> ⚠️ **TÀI LIỆU THIẾT KẾ — KHÔNG PHẢI MÔ TẢ CODE HIỆN TẠI.**
+> Cập nhật lần cuối: **2026-07-02**. Từ đó tới nay mã nguồn đã đổi rất nhiều.
+> Đọc [`BAN-DO-DU-AN.md`](../BAN-DO-DU-AN.md) để biết dự án HIỆN TẠI ra sao.
+> Khi tài liệu này mâu thuẫn với code, **code đúng** — tài liệu là cái sai.
+
 
 ## Purpose
 
@@ -8,17 +13,19 @@ Keep this rule first: real secrets belong only in local `.env` files or deployme
 
 ## Current Runtime Status
 
-The source currently runs as a TypeScript/Node production API and CLI validation toolchain. There is no first-party web UI in this repository yet.
+The source currently runs as a TypeScript/Node production API, CLI validation toolchain, first-party Short Studio create/review shell, and operator dashboard shell. The current web surfaces are backend-integration/operator shells, not a finished customer-facing commercial UI.
 
 Current control surfaces:
 
 - CLI validation commands in `package.json`
 - HTTP API in `src/api/server.ts`
+- Short Studio shell in `src/api/short-pipeline-create-page.ts`
+- Operator launch dashboard shell in `src/api/operator-launch-dashboard-page.ts`
 - JSON request contract in `schemas/render-request.schema.json`
 - Settings contract in `src/types/settings.ts`
 - Operator process in `docs/OPERATOR_RUNBOOK.md`
 
-Future UI work should not invent new settings. It should expose the existing request settings listed in this guide and submit them to `/v1/render` or `/v1/render-jobs`.
+Future full customer UI work should not invent new settings. It should expose the existing request settings and Short pipeline UI contracts listed in this guide, then submit reviewed jobs through `/v1/render-jobs` or the Short pipeline render handoff endpoints.
 
 ## What Must Be Installed
 
@@ -96,8 +103,10 @@ Required variables:
 | `CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER` | Optional | When `true`, render submissions must use a configured client key and pass quota policy before provider spend. | Set in deployment environment. |
 | `CINEJELLY_CLIENT_USAGE_LEDGER_PATH` | Optional | JSONL quota reservation ledger for client render submissions. | Set to an ignored/persistent writable path. |
 | `CINEJELLY_API_JOB_HISTORY_PATH` | Optional | Compact JSON history file for retained async render jobs. Restored jobs are marked `retentionSource=history_store` and `detailRetention=compact_restored`; stale queued/running jobs restore as canceled/audit-required with compact provider checkpoint evidence when ledger entries were recorded. Provider reconciliation and handoff smoke reports can use that evidence for local audit, including lease heartbeat renewal, but this path is not a distributed queue backend. | Set to an ignored/persistent writable path on durable storage. |
-| `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH` | Optional | Compact JSON store for redacted no-spend short-pipeline conversation sessions. Enables `/v1/short-pipeline/conversation-sessions` list/detail continuity for future UI without raw transcript, raw URLs, local paths, or secrets. | Set to an ignored/persistent writable path on durable storage. |
+| `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH` | Optional override | Compact JSON store for redacted no-spend short-pipeline conversation sessions. If unset, the API uses `CINEJELLY_OUTPUT_DIR/short-pipeline-sessions.json`. | Override only when session continuity should live on a separate durable volume. |
 | `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_LIMIT` | Optional | Maximum retained short-pipeline conversation session records. | Positive integer; defaults to 200 and is capped by the store. |
+| `CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH` | Optional override | Compact JSON store for reusable Short channel/KOL/style profiles. If unset, the API uses `CINEJELLY_OUTPUT_DIR/short-channel-styles.json`. | Override only when channel style memory should live on a separate durable volume. |
+| `CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_LIMIT` | Optional | Maximum retained short channel-style profile records. | Positive integer; defaults to 200 and is capped by the store. |
 | `CINEJELLY_RENDER_PROVIDER_LEASE_PATH` | Optional | Durable JSON lease file for the protected `/v1/render-provider-handoff-leases/*` service. When set, preflight validates writability and workers can use acquire/release/heartbeat/list/active through the deployment token. | Set to an ignored/persistent writable path on durable storage. |
 | `CINEJELLY_RENDER_PROVIDER_LEASE_MAX_RECORDS` | Optional | Maximum retained lease records for the built-in lease service. | Positive integer; defaults to 500. |
 | `CINEJELLY_PRODUCTION_GRAPH_RESUME_QUEUE_PATH` | Optional | Durable JSON queue file for the protected `/v1/production-graph-resume-queue/*` service. When set, preflight validates writability and workers can use enqueue/lease/acknowledge/records through the deployment token without exposing raw queue names or worker IDs. | Set to an ignored/persistent writable path on durable storage. |
@@ -315,7 +324,7 @@ This is stricter than `doctor`. It reads local smoke evidence, paid-render evide
 | `/v1/render-jobs/<jobId>/review` | POST | Submit corrected scene/audio/caption/claim review checkpoints; approved `pre_render` review queues spend, approved `pre_export` review releases retained artifacts without rerendering. |
 | `/v1/render-jobs/<jobId>` | DELETE | Cancel one job. |
 | `/v1/short-pipeline/conversation` | POST | Stateless natural-language short-pipeline session planning with redacted turns and formal review gates. |
-| `/v1/short-pipeline/conversation-sessions` | POST | Persist a redacted no-spend short-pipeline conversation session when `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH` is configured. |
+| `/v1/short-pipeline/conversation-sessions` | POST | Persist a redacted no-spend short-pipeline conversation session in the configured store or the default store under `CINEJELLY_OUTPUT_DIR`. |
 | `/v1/short-pipeline/conversation-sessions` | GET | Client-scoped list of persisted redacted conversation-session summaries. |
 | `/v1/short-pipeline/conversation-sessions/<sessionId>` | GET | Client-scoped detail for one persisted redacted conversation session. |
 | `/v1/short-pipeline/conversation-sessions/<sessionId>/render-jobs` | POST | Create a review-gated async render job from the stored server-side session plan; client-supplied `planInput` is rejected. Requires formal review evidence and explicit `confirmRenderSubmission=true` before approved evidence can queue provider spend. |
@@ -346,12 +355,12 @@ GET /v1/render-settings
 Authorization: Bearer <CINEJELLY_API_AUTH_TOKEN>
 ```
 
-The response intentionally contains no API keys or local paths. It reports defaults, supported setting values, duration and cost constraints, quality-mode behavior, selected model IDs, admin-allowlisted Seedance model choices, Seedance capability configuration source, and whether a first-party UI exists. Today the official control surface is still HTTP API plus CLI; a future UI should read this descriptor instead of duplicating option lists.
+The response intentionally contains no API keys or local paths. It reports defaults, supported setting values, duration and cost constraints, quality-mode behavior, selected model IDs, admin-allowlisted Seedance model choices, per-model capability support, Seedance capability configuration source, and the UI-support status needed by first-party shells. The current official control surfaces are HTTP API, CLI, the Short Studio shell, and the operator dashboard shell; any future full customer UI should read this descriptor instead of duplicating option lists.
 
 | Setting | Options | What it controls |
 | --- | --- | --- |
-| `tier` | `fast`, `standard` | Chooses fast or standard Seedance model family. |
-| `resolution` | `480p`, `720p`, `1080p` | Target render resolution and postproduction validation target. |
+| `tier` | `mini`, `fast`, `standard` | Chooses the operator-allowlisted Seedance tier; Mini is the cheapest/draft path, Fast favors latency, Standard favors quality. |
+| `resolution` | `480p`, `720p`, `1080p`, `720p-SR`, `1080p-SR`, `1440p-SR` | Target render resolution and optional postproduction super-resolution target. |
 | `qualityMode` | `economy`, `standard`, `high`, `ultimate` | Number of candidates, repair budget, and quality/cost behavior. |
 | `ratio` | `adaptive`, `21:9`, `16:9`, `4:3`, `1:1`, `3:4`, `9:16` | Aspect-ratio planning and final delivery validation. |
 | `durationTargetSeconds` | `1` to `480` | Total target video length. Long videos are split into provider-supported shots/clips. |
@@ -363,8 +372,10 @@ The response intentionally contains no API keys or local paths. It reports defau
 Model selection for API/UI clients:
 
 - Read `modelSelection.seedance.selectableModels` from `GET /v1/render-settings`.
+- Read each selectable model's `capabilitySupport` before enabling settings that depend on model support, especially native audio, return-last-frame chaining, high bitrate, references, and Mini resolution limits.
 - Send an optional `modelPreferences.seedanceModelId` in `/v1/render`, `/v1/render-jobs`, or validation request JSON only when the user selects one of those IDs.
-- Runtime admission rejects model IDs outside the admin allowlist built from `ATLASCLOUD_SEEDANCE_FAST_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, and `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON`.
+- Runtime admission rejects model IDs outside the admin allowlist built from `ATLASCLOUD_SEEDANCE_MINI_MODEL`, `ATLASCLOUD_SEEDANCE_FAST_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, and `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON`.
+- If no reviewed `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` is configured, the Atlas provider fallback treats Mini as `480p`/`720p` only; higher and SR resolutions require Fast/Standard fallback capability or an operator-reviewed capability record that proves Mini support.
 - LLM model selection remains admin-configured through `ATLASCLOUD_LLM_MODEL`; request-level LLM overrides are intentionally disabled so source-video analysis, story planning, and semantic inspection stay under operator control.
 
 Default settings in `src/types/settings.ts`:
@@ -377,6 +388,7 @@ Default settings in `src/types/settings.ts`:
   "ratio": "16:9",
   "durationTargetSeconds": 120,
   "audioMode": "hybrid",
+  "bitrateMode": "high",
   "watermark": false,
   "returnLastFrame": true
 }

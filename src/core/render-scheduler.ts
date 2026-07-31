@@ -5,6 +5,12 @@
  */
 
 import type { ShotContract } from "../types/prompt.js";
+import {
+  internalSourcePatternOrigins,
+  RENDER_SCHEDULER_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
+
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(RENDER_SCHEDULER_SOURCE_PATTERN_IDS);
 
 export type RenderScheduleMode = "parallel" | "sequential";
 
@@ -19,6 +25,7 @@ export type RenderScheduleSequentialReason =
   | "strategy_reference_lock"
   | "strategy_last_frame_chaining"
   | "strategy_source_video"
+  | "strategy_sequence_bible"
   | "strategy_manual_storyboard";
 
 export interface RenderScheduleItem<TValue> {
@@ -112,7 +119,7 @@ export class RenderScheduler {
         shotIds: batch.items.map((scheduled) => scheduled.item.shot.shotId),
         sequentialReasons: this.uniqueReasons(batch.items.flatMap((scheduled) => scheduled.sequentialReasons))
       })),
-      sourcePatternOrigins: ["HKUDS/ViMax", "HKUDS/VideoAgent", "vericontext/vibeframe"]
+      sourcePatternOrigins: SOURCE_PATTERN_ORIGINS
     };
   }
 

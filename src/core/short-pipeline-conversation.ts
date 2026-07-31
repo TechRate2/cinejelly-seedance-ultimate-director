@@ -17,19 +17,20 @@ import type {
   ShortPipelineUserReviewState
 } from "../types/short-pipeline.js";
 import { createStableId } from "../utils/ids.js";
+import {
+  internalSourcePatternOrigins,
+  SHORT_CORE_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "calesthio/OpenMontage",
-  "HKUDS/ViMax",
-  "HKUDS/VideoAgent",
-  "video-db/Director",
-  "vericontext/vibeframe"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(SHORT_CORE_SOURCE_PATTERN_IDS);
 
 const MAX_TURNS = 24;
 const MAX_MESSAGE_LENGTH = 1_600;
 const RAW_URL_PATTERN = /\bhttps?:\/\/[^\s)>,"]+/gi;
-const CREDENTIAL_PATTERN = /\b(?:bearer\s+|api[_-]?key|secret|token|password|authorization)\S*/gi;
+// Redact the credential keyword AND the value that follows it (`key: value`, `key=value`,
+// `Bearer value`), plus known high-entropy token prefixes — not just the keyword token.
+const CREDENTIAL_PATTERN =
+  /\b(?:bearer|basic)\s+[^\s"',]+|\b(?:api[_-]?key|access[_-]?key|secret[_-]?key|private[_-]?key|token|secret|password|passwd|pwd|authorization|credential)["']?\s*[:=]\s*["']?[^"',\s&}]+|\b(?:sk-[A-Za-z0-9_\-]{8,}|gh[oprsu]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[A-Z0-9]{12,})\b/gi;
 const LOCAL_PATH_PATTERN = /[A-Za-z]:\\[^\s]+|\\\\[^\s]+|(?:^|\s)\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/[^\s]+/gi;
 
 export class ShortPipelineConversationEngine {
@@ -59,12 +60,16 @@ export class ShortPipelineConversationEngine {
       ...(input.product ? { product: input.product } : {}),
       ...(input.brandKit ? { brandKit: input.brandKit } : {}),
       ...(input.channelStyle ? { channelStyle: input.channelStyle } : {}),
+      ...(input.mediaReferences ? { mediaReferences: input.mediaReferences } : {}),
       ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {}),
       ...(input.preferredTemplateId ? { preferredTemplateId: input.preferredTemplateId } : {}),
       allowTemplateSuggestions,
       ...(input.targetPlatform ? { targetPlatform: input.targetPlatform } : {}),
       ...(input.targetDurationSeconds !== undefined ? { targetDurationSeconds: input.targetDurationSeconds } : {}),
+      ...(input.targetAspectRatio ? { targetAspectRatio: input.targetAspectRatio } : {}),
       ...(input.audio ? { audio: input.audio } : {}),
+      ...(input.seedanceSettings ? { seedanceSettings: input.seedanceSettings } : {}),
+      ...(input.visualBible ? { visualBible: input.visualBible } : {}),
       generatedAt
     });
     const turns = messages.map((message, index) => turnFrom(message, index));
@@ -130,22 +135,20 @@ function normalizeMessages(messages: readonly ShortPipelineConversationMessageIn
     return [];
   }
   return messages
-    .slice(-MAX_TURNS)
     .map((message) => {
       if (!message || typeof message !== "object" || Array.isArray(message)) {
         throw new Error("Conversation messages must be objects.");
       }
-      const text = cleanText(message.text, MAX_MESSAGE_LENGTH);
-      if (!text) {
-        throw new Error("Conversation message text is required.");
-      }
       return {
         role: roleFrom(message.role),
-        text,
+        text: cleanText(message.text, MAX_MESSAGE_LENGTH) ?? "",
         createdAt: dateFrom(message.createdAt)
       };
     })
-    .filter((message) => message.role === "user" || message.role === "operator");
+    // Drop non-participant and empty turns BEFORE requiring text, so an empty assistant
+    // placeholder (common in streamed chat logs) does not crash session building.
+    .filter((message) => (message.role === "user" || message.role === "operator") && message.text.length > 0)
+    .slice(-MAX_TURNS);
 }
 
 function roleFrom(role: ShortPipelineConversationRole | undefined): ShortPipelineConversationRole {

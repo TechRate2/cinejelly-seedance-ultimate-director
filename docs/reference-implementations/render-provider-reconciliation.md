@@ -57,7 +57,7 @@ The report contains:
 ## Production Destination
 
 - `src/api/render-provider-reconciler.ts`
-- `scripts/run-render-provider-reconciliation-smoke.mjs`
+- `tests/run-render-provider-reconciliation-smoke.mjs`
 - `schemas/render-provider-reconciliation-report.schema.json`
 - `scripts/validate-report-contracts.mjs`
 

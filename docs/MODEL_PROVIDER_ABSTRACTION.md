@@ -1,4 +1,9 @@
 # Model Provider Abstraction
+> ⚠️ **TÀI LIỆU THIẾT KẾ — KHÔNG PHẢI MÔ TẢ CODE HIỆN TẠI.**
+> Cập nhật lần cuối: **2026-07-02**. Từ đó tới nay mã nguồn đã đổi rất nhiều.
+> Đọc [`BAN-DO-DU-AN.md`](../BAN-DO-DU-AN.md) để biết dự án HIỆN TẠI ra sao.
+> Khi tài liệu này mâu thuẫn với code, **code đúng** — tài liệu là cái sai.
+
 
 ## Purpose
 
@@ -206,6 +211,7 @@ Important:
 - This is a desired normalized capability structure.
 - Actual values must be loaded from provider docs, schema inspection, or configuration.
 - If Atlas docs and articles differ, the current model schema wins.
+- When no reviewed Seedance capability JSON is configured, the Atlas fallback capability map is intentionally conservative for Mini models: `480p`/`720p` only. Operator-reviewed capability JSON can broaden or narrow any model after schema verification.
 
 ## Atlas Cloud Default Configuration
 

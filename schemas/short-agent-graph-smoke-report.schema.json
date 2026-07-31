@@ -39,6 +39,9 @@
         "sceneCount",
         "candidateCount",
         "promptShotCount",
+        "durationProductionContractPresent",
+        "audioScriptLineCount",
+        "hybridAudioDefault",
         "selectedCreativeIdeaCandidatePresent",
         "rawSourceLeakCheckPassed"
       ],
@@ -48,6 +51,9 @@
         "sceneCount": { "type": "integer", "minimum": 3 },
         "candidateCount": { "type": "integer", "minimum": 4 },
         "promptShotCount": { "type": "integer", "minimum": 3 },
+        "durationProductionContractPresent": { "const": true },
+        "audioScriptLineCount": { "type": "integer", "minimum": 3 },
+        "hybridAudioDefault": { "const": true },
         "selectedCreativeIdeaCandidatePresent": { "const": true },
         "rawSourceLeakCheckPassed": { "const": true }
       }
@@ -67,6 +73,9 @@
         "selectedCreativeIdeaId",
         "selectedCandidateLabel",
         "promptPackId",
+        "durationProductionTimingRisk",
+        "audioScriptExternalTtsReady",
+        "handoffAudioMode",
         "handoffHasPromptPack"
       ],
       "properties": {
@@ -81,6 +90,9 @@
         "selectedCreativeIdeaId": { "type": "string" },
         "selectedCandidateLabel": { "type": "string" },
         "promptPackId": { "type": "string" },
+        "durationProductionTimingRisk": { "enum": ["low", "medium", "high", "missing"] },
+        "audioScriptExternalTtsReady": { "const": true },
+        "handoffAudioMode": { "enum": ["hybrid", "native", "guided", "none"] },
         "handoffHasPromptPack": { "const": true }
       }
     },

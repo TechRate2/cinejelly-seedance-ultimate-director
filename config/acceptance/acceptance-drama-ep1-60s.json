@@ -1,0 +1,39 @@
+{
+  "userInput": "Tap 1 phim drama ngan doc 60 giay (tap dau cua bo nhieu tap): co giup viec bi gia dinh giau co duoi viec ngay truoc sinh nhat ba chu, nhung co chinh la nguoi thua ke an danh cua tap doan doi thu. Mo dau 3 giay dau bang hanh dong cang thang (bi hat ly nuoc vao nguoi giua bua tiec), khong mo bang canh vat. Twist o giay 40: co nhan cuoc goi xac nhan quyen thua ke. Ket bang cliffhanger: co buoc vao sanh cong ty voi tu cach chu tich moi, cat truoc khi moi nguoi kip phan ung. Cam xuc choi tren guong mat, thoai toi thieu, nhat quan trang phuc va boi canh.",
+  "settings": {
+    "durationTargetSeconds": 60,
+    "ratio": "9:16",
+    "resolution": "1080p",
+    "qualityMode": "standard",
+    "audioMode": "hybrid",
+    "tier": "standard",
+    "maxCostUsd": 8
+  },
+  "metadata": {
+    "acceptanceBatch": "v1",
+    "acceptanceCase": "drama_ep1_60s",
+    "niche": "drama_series",
+    "creativeMode": "story",
+    "videoEndingStyle": "cliffhanger",
+    "seriesId": "acceptance_demo_series",
+    "episodeNumber": "1"
+  },
+  "outputPath": "acceptance/drama-ep1/final.mp4",
+  "workDirectory": "acceptance/drama-ep1/work",
+  "artifactDirectory": "acceptance/drama-ep1/artifacts",
+  "semanticVisualInspectionOptions": {
+    "enabled": true,
+    "expectations": [
+      "nhan vat giu nguyen guong mat giua cac canh",
+      "khong artifact AI lo lieu",
+      "ket cliffhanger khong bi tu ket lang"
+    ],
+    "maxFrames": 3
+  },
+  "frameSamplingOptions": {
+    "enabled": true,
+    "outputDirectory": "acceptance/drama-ep1/frames",
+    "intervalSeconds": 6,
+    "maxFrames": 8
+  }
+}

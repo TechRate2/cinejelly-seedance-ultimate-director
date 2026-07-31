@@ -19,39 +19,119 @@
     "nextActions"
   ],
   "properties": {
-    "schemaVersion": { "const": "cinejelly.short-pipeline-smoke.v1" },
-    "generatedAt": { "type": "string", "format": "date-time" },
-    "status": { "enum": ["pass", "fail"] },
-    "noSpend": { "const": true },
-    "networkCallsMade": { "const": false },
-    "providerCallsMade": { "const": false },
+    "schemaVersion": {
+      "const": "cinejelly.short-pipeline-smoke.v1"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "enum": [
+        "pass",
+        "fail"
+      ]
+    },
+    "noSpend": {
+      "const": true
+    },
+    "networkCallsMade": {
+      "const": false
+    },
+    "providerCallsMade": {
+      "const": false
+    },
     "sourcePatternOrigins": {
       "type": "array",
       "minItems": 4,
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "checkedInputs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["outputPath", "scenarioCount", "endpointPath", "renderHandoffEndpointPath", "rawUrlLeakCheckPassed"],
+      "required": [
+        "outputPath",
+        "scenarioCount",
+        "pipeScenarioCount",
+        "endpointPath",
+        "renderHandoffEndpointPath",
+        "rawUrlLeakCheckPassed"
+      ],
       "properties": {
-        "outputPath": { "type": "string" },
-        "scenarioCount": { "const": 3 },
-        "endpointPath": { "const": "/v1/short-pipeline/plan" },
-        "renderHandoffEndpointPath": { "const": "/v1/short-pipeline/render-jobs" },
-        "rawUrlLeakCheckPassed": { "type": "boolean" }
+        "outputPath": {
+          "type": "string"
+        },
+        "scenarioCount": {
+          "const": 11
+        },
+        "pipeScenarioCount": {
+          "const": 5
+        },
+        "endpointPath": {
+          "const": "/v1/short-pipeline/plan"
+        },
+        "renderHandoffEndpointPath": {
+          "const": "/v1/short-pipeline/render-jobs"
+        },
+        "rawUrlLeakCheckPassed": {
+          "type": "boolean"
+        }
       }
     },
     "scenarios": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reviewRequired", "blocked", "naturalOnly", "renderHandoff", "audioPolicies"],
+      "required": [
+        "reviewRequired",
+        "blocked",
+        "naturalOnly",
+        "cleanHttpsReferences",
+        "privateMediaReferences",
+        "pipeMatrix",
+        "renderHandoff",
+        "productionBibleRenderHandoff",
+        "productionBibleMaxDuration",
+        "audioPolicies"
+      ],
       "properties": {
-        "reviewRequired": { "$ref": "#/$defs/scenario" },
-        "blocked": { "$ref": "#/$defs/scenario" },
-        "naturalOnly": { "$ref": "#/$defs/scenario" },
-        "renderHandoff": { "$ref": "#/$defs/renderHandoffScenario" },
-        "audioPolicies": { "$ref": "#/$defs/audioPoliciesScenario" }
+        "reviewRequired": {
+          "$ref": "#/$defs/scenario"
+        },
+        "blocked": {
+          "$ref": "#/$defs/scenario"
+        },
+        "naturalOnly": {
+          "$ref": "#/$defs/scenario"
+        },
+        "cleanHttpsReferences": {
+          "$ref": "#/$defs/cleanHttpsReferencesScenario"
+        },
+        "privateMediaReferences": {
+          "$ref": "#/$defs/privateMediaReferencesScenario"
+        },
+        "pipeMatrix": {
+          "$ref": "#/$defs/pipeMatrix"
+        },
+        "renderHandoff": {
+          "$ref": "#/$defs/renderHandoffScenario"
+        },
+        "productionBibleRenderHandoff": {
+          "$ref": "#/$defs/productionBibleRenderHandoffScenario"
+        },
+        "productionBibleMaxDuration": {
+          "$ref": "#/$defs/productionBibleMaxDurationScenario"
+        },
+        "audioPolicies": {
+          "$ref": "#/$defs/audioPoliciesScenario"
+        },
+        "shortStoryboardPromptContractDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/shortStoryboardPromptContractDiagnostic"
+          }
+        }
       }
     },
     "checks": {
@@ -60,11 +140,24 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "status", "message"],
+        "required": [
+          "name",
+          "status",
+          "message"
+        ],
         "properties": {
-          "name": { "type": "string" },
-          "status": { "enum": ["pass", "fail"] },
-          "message": { "type": "string" }
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "fail"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
         }
       }
     },
@@ -78,15 +171,25 @@
         "releaseBlocker"
       ],
       "properties": {
-        "shortPipelineSmokePass": { "type": "boolean" },
-        "canUseAsNoSpendBackendEvidence": { "type": "boolean" },
-        "canReleaseToCustomerTraffic": { "const": false },
-        "releaseBlocker": { "type": "string" }
+        "shortPipelineSmokePass": {
+          "type": "boolean"
+        },
+        "canUseAsNoSpendBackendEvidence": {
+          "type": "boolean"
+        },
+        "canReleaseToCustomerTraffic": {
+          "const": false
+        },
+        "releaseBlocker": {
+          "type": "string"
+        }
       }
     },
     "nextActions": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     }
   },
   "$defs": {
@@ -118,41 +221,208 @@
         "canReleaseToCustomerTraffic"
       ],
       "properties": {
-        "planId": { "type": "string" },
-        "status": { "enum": ["approval_required", "changes_requested", "blocked"] },
-        "templatePolicy": { "enum": ["none", "suggested_optional", "operator_selected_optional"] },
-        "dynamicWorkflowRequired": { "const": true },
-        "templateSuggestionCount": { "type": "integer", "minimum": 0 },
-        "sceneCount": { "type": "integer", "minimum": 1 },
-        "reviewApprovalStatus": { "type": "string" },
-        "reviewCheckpointCount": { "type": "integer", "minimum": 1 },
-        "reviewIssueCount": { "type": "integer", "minimum": 0 },
-        "productBriefStatus": { "type": "string" },
-        "productSourceStatus": { "type": "string" },
-        "productSourceUrlSha256Present": { "type": "boolean" },
-        "productRawUrlSerialized": { "const": false },
-        "brandKitStatus": { "type": "string" },
+        "planId": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "approval_required",
+            "changes_requested",
+            "blocked"
+          ]
+        },
+        "templatePolicy": {
+          "enum": [
+            "none",
+            "suggested_optional",
+            "operator_selected_optional"
+          ]
+        },
+        "dynamicWorkflowRequired": {
+          "const": true
+        },
+        "templateSuggestionCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sceneCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reviewApprovalStatus": {
+          "type": "string"
+        },
+        "reviewCheckpointCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reviewIssueCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "productBriefStatus": {
+          "type": "string"
+        },
+        "productSourceStatus": {
+          "type": "string"
+        },
+        "productSourceUrlSha256Present": {
+          "type": "boolean"
+        },
+        "productRawUrlSerialized": {
+          "const": false
+        },
+        "brandKitStatus": {
+          "type": "string"
+        },
         "brandIssueCodes": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
-        "commercialReadinessStatus": { "enum": ["ready", "review_required", "blocked"] },
-        "commercialReadinessScore": { "type": "number", "minimum": 0, "maximum": 1 },
+        "commercialReadinessStatus": {
+          "enum": [
+            "ready",
+            "review_required",
+            "blocked"
+          ]
+        },
+        "commercialReadinessScore": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
         "crawlerPolicyStatus": {
-          "enum": ["not_needed", "snapshot_ready", "live_crawl_optional", "clean_url_required", "blocked_by_unsafe_url"]
+          "enum": [
+            "not_needed",
+            "snapshot_ready",
+            "live_crawl_optional",
+            "clean_url_required",
+            "blocked_by_unsafe_url"
+          ]
         },
         "referenceAnalysisStatus": {
-          "enum": ["not_provided", "operator_summary_ready", "auto_analysis_recommended", "review_required", "blocked"]
+          "enum": [
+            "not_provided",
+            "operator_summary_ready",
+            "auto_analysis_recommended",
+            "review_required",
+            "blocked"
+          ]
         },
         "outcomeMemoryStatus": {
-          "enum": ["ready_to_write_after_review", "waiting_for_persistent_store", "blocked"]
+          "enum": [
+            "ready_to_write_after_review",
+            "waiting_for_persistent_store",
+            "blocked"
+          ]
         },
-        "readinessCheckCount": { "type": "integer", "minimum": 10 },
-        "channelStyleProfileStatus": { "enum": ["ready", "review_required", "blocked"] },
-        "channelStyleAnchorCount": { "type": "integer", "minimum": 0 },
-        "channelStyleMemoryPatternCount": { "type": "integer", "minimum": 0 },
-        "canUseAsNoSpendPlanningEvidence": { "type": "boolean" },
-        "canReleaseToCustomerTraffic": { "const": false }
+        "readinessCheckCount": {
+          "type": "integer",
+          "minimum": 10
+        },
+        "channelStyleProfileStatus": {
+          "enum": [
+            "ready",
+            "review_required",
+            "blocked"
+          ]
+        },
+        "channelStyleAnchorCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "channelStyleMemoryPatternCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "canUseAsNoSpendPlanningEvidence": {
+          "type": "boolean"
+        },
+        "canReleaseToCustomerTraffic": {
+          "const": false
+        }
+      }
+    },
+    "cleanHttpsReferencesScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planId",
+        "plannedReferenceCount",
+        "plannedProviderHandoffCount",
+        "plannedCleanHttpsCount",
+        "plannedProviderUriCount",
+        "plannedProviderAssetIdCount",
+        "handoffReferenceCount",
+        "handoffCleanHttpsRoleCount",
+        "sourceVideoHandoffPresent"
+      ],
+      "properties": {
+        "planId": {
+          "type": "string"
+        },
+        "plannedReferenceCount": {
+          "const": 3
+        },
+        "plannedProviderHandoffCount": {
+          "const": 3
+        },
+        "plannedCleanHttpsCount": {
+          "const": 3
+        },
+        "plannedProviderUriCount": {
+          "const": 0
+        },
+        "plannedProviderAssetIdCount": {
+          "const": 0
+        },
+        "handoffReferenceCount": {
+          "const": 3
+        },
+        "handoffCleanHttpsRoleCount": {
+          "const": 3
+        },
+        "sourceVideoHandoffPresent": {
+          "const": true
+        }
+      }
+    },
+    "privateMediaReferencesScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planId",
+        "plannedReferenceCount",
+        "blockedReferenceCount",
+        "providerHandoffCount",
+        "handoffReferenceCount",
+        "uriPolicies"
+      ],
+      "properties": {
+        "planId": {
+          "type": "string"
+        },
+        "plannedReferenceCount": {
+          "const": 3
+        },
+        "blockedReferenceCount": {
+          "const": 3
+        },
+        "providerHandoffCount": {
+          "const": 0
+        },
+        "handoffReferenceCount": {
+          "const": 0
+        },
+        "uriPolicies": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "const": "blocked_unsafe_or_private"
+          }
+        }
       }
     },
     "renderHandoffScenario": {
@@ -178,23 +448,410 @@
         "canReleaseToCustomerTraffic"
       ],
       "properties": {
-        "planId": { "type": "string" },
-        "pendingReviewCanQueueRender": { "const": false },
-        "approvedReviewCanQueueRender": { "const": true },
-        "canUseAsRenderJobHandoff": { "type": "boolean" },
-        "captionCueCount": { "type": "integer", "minimum": 0 },
-        "generatedAudioIntentCount": { "type": "integer", "minimum": 1 },
-        "requestHasPlanLineage": { "type": "boolean" },
-        "requestHasWorkspaceLineage": { "type": "boolean" },
-        "requestHasCommercialReadinessLineage": { "type": "boolean" },
-        "commercialReadinessStatus": { "type": "string" },
-        "crawlerPolicyStatus": { "type": "string" },
-        "outcomeMemoryStatus": { "type": "string" },
-        "requestHasChannelStyleLineage": { "type": "boolean" },
-        "requestDurationSeconds": { "type": "number", "minimum": 1 },
-        "requestAspectRatio": { "type": "string" },
-        "requestRawUrlSerialized": { "const": false },
-        "canReleaseToCustomerTraffic": { "const": false }
+        "planId": {
+          "type": "string"
+        },
+        "pendingReviewCanQueueRender": {
+          "const": false
+        },
+        "approvedReviewCanQueueRender": {
+          "const": true
+        },
+        "canUseAsRenderJobHandoff": {
+          "type": "boolean"
+        },
+        "captionCueCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "generatedAudioIntentCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "requestHasPlanLineage": {
+          "type": "boolean"
+        },
+        "requestHasWorkspaceLineage": {
+          "type": "boolean"
+        },
+        "requestHasCommercialReadinessLineage": {
+          "type": "boolean"
+        },
+        "commercialReadinessStatus": {
+          "type": "string"
+        },
+        "crawlerPolicyStatus": {
+          "type": "string"
+        },
+        "outcomeMemoryStatus": {
+          "type": "string"
+        },
+        "requestHasChannelStyleLineage": {
+          "type": "boolean"
+        },
+        "requestDurationSeconds": {
+          "type": "number",
+          "minimum": 1
+        },
+        "requestAspectRatio": {
+          "type": "string"
+        },
+        "requestRawUrlSerialized": {
+          "const": false
+        },
+        "canReleaseToCustomerTraffic": {
+          "const": false
+        }
+      }
+    },
+    "pipeMatrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "smartShort",
+        "productKol",
+        "storyboard",
+        "videoRemake",
+        "productionBible"
+      ],
+      "properties": {
+        "smartShort": {
+          "$ref": "#/$defs/pipeMatrixScenario"
+        },
+        "productKol": {
+          "$ref": "#/$defs/pipeMatrixScenario"
+        },
+        "storyboard": {
+          "$ref": "#/$defs/pipeMatrixScenario"
+        },
+        "videoRemake": {
+          "$ref": "#/$defs/pipeMatrixScenario"
+        },
+        "productionBible": {
+          "$ref": "#/$defs/pipeMatrixScenario"
+        }
+      }
+    },
+    "pipeMatrixScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planId",
+        "selectedMode",
+        "selectedBackendPipe",
+        "selectionReasonCodeCount",
+        "visualBibleAlignmentStatus",
+        "visualBibleAlignmentExplanation",
+        "recommendedPipeCount",
+        "seedanceMode",
+        "resolution",
+        "bitrateMode",
+        "superResolution",
+        "generatedAudioMode",
+        "selectedPipeDefaultResolution",
+        "selectedPipeEffectiveResolution",
+        "selectedPipeEffectiveBitrateMode",
+        "selectedPipeEffectiveSuperResolution",
+        "selectedPipeEffectiveProviderMode",
+        "selectedPipeEffectivePromptRecipeName",
+        "visualBibleRecommendedPipe",
+        "visualBibleExecutionMode",
+        "visualBibleSeedanceSubmissionMode",
+        "visualBibleClipStrategy",
+        "visualBibleReferenceBindingOrderCount",
+        "visualBibleExecutionStepCount",
+        "visualBibleDurationCoverageRule",
+        "visualBibleBlocksRenderUntilAssetsApproved",
+        "referenceTagRoles",
+        "sourceVideoReferencePresent",
+        "pipeOptionCount"
+      ],
+      "properties": {
+        "planId": {
+          "type": "string"
+        },
+        "selectedMode": {
+          "enum": [
+            "smart_short",
+            "product_kol_ugc",
+            "storyboard_multishot",
+            "video_remake",
+            "production_bible"
+          ]
+        },
+        "selectedBackendPipe": {
+          "enum": [
+            "normal_short_pipe",
+            "product_kol_reference_pipe",
+            "storyboard_board_pipe",
+            "video_remake_pipe",
+            "long_sequence_bible_pipe"
+          ]
+        },
+        "selectionReasonCodeCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "visualBibleAlignmentStatus": {
+          "enum": [
+            "aligned",
+            "reference_board_asset_workflow",
+            "storyboard_until_references",
+            "duration_override",
+            "canonical_backend_override"
+          ]
+        },
+        "visualBibleAlignmentExplanation": {
+          "type": "string",
+          "minLength": 10
+        },
+        "recommendedPipeCount": {
+          "const": 1
+        },
+        "seedanceMode": {
+          "enum": [
+            "text_to_video",
+            "image_to_video",
+            "reference_to_video"
+          ]
+        },
+        "resolution": {
+          "type": "string"
+        },
+        "bitrateMode": {
+          "enum": [
+            "standard",
+            "high"
+          ]
+        },
+        "superResolution": {
+          "type": "boolean"
+        },
+        "generatedAudioMode": {
+          "enum": [
+            "none",
+            "guided",
+            "native",
+            "hybrid"
+          ]
+        },
+        "selectedPipeDefaultResolution": {
+          "const": "720p"
+        },
+        "selectedPipeEffectiveResolution": {
+          "type": "string"
+        },
+        "selectedPipeEffectiveBitrateMode": {
+          "enum": [
+            "standard",
+            "high"
+          ]
+        },
+        "selectedPipeEffectiveSuperResolution": {
+          "type": "boolean"
+        },
+        "selectedPipeEffectiveProviderMode": {
+          "enum": [
+            "text_to_video",
+            "image_to_video",
+            "reference_to_video"
+          ]
+        },
+        "selectedPipeEffectivePromptRecipeName": {
+          "enum": [
+            "text_to_video_niche_short",
+            "image_to_video_product_or_kol",
+            "reference_to_video_multi_reference",
+            "reference_to_video_remake_blueprint",
+            "reference_board_to_video_sequence"
+          ]
+        },
+        "visualBibleRecommendedPipe": {
+          "enum": [
+            "normal_short_pipe",
+            "product_kol_reference_pipe",
+            "reference_board_pipe",
+            "storyboard_board_pipe",
+            "video_remake_pipe",
+            "long_sequence_bible_pipe"
+          ]
+        },
+        "visualBibleExecutionMode": {
+          "enum": [
+            "text_only_no_board",
+            "reference_board_to_seedance",
+            "storyboard_board_to_seedance",
+            "video_remake_to_seedance",
+            "production_bible_to_seedance"
+          ]
+        },
+        "visualBibleSeedanceSubmissionMode": {
+          "enum": [
+            "text_to_video",
+            "reference_to_video"
+          ]
+        },
+        "visualBibleClipStrategy": {
+          "enum": [
+            "single_clip",
+            "multi_clip_last_frame_chaining",
+            "sequence_bible_last_frame_chaining"
+          ]
+        },
+        "visualBibleReferenceBindingOrderCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "visualBibleExecutionStepCount": {
+          "type": "integer",
+          "minimum": 3
+        },
+        "visualBibleDurationCoverageRule": {
+          "type": "string",
+          "minLength": 10
+        },
+        "visualBibleBlocksRenderUntilAssetsApproved": {
+          "type": "boolean"
+        },
+        "referenceTagRoles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sourceVideoReferencePresent": {
+          "type": "boolean"
+        },
+        "pipeOptionCount": {
+          "const": 5
+        }
+      }
+    },
+    "productionBibleRenderHandoffScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planId",
+        "canUseAsRenderJobHandoff",
+        "requestDurationSeconds",
+        "workflowMode",
+        "renderMode",
+        "selectedMode",
+        "selectedBackendPipe",
+        "selectedPipeDurationMaxSeconds",
+        "selectedPipeSupportsLongSequence",
+        "targetWithinSelectedPipeDurationRange",
+        "visualBibleBlocksRender",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "planId": {
+          "type": "string"
+        },
+        "canUseAsRenderJobHandoff": {
+          "const": false
+        },
+        "requestDurationSeconds": {
+          "const": 90
+        },
+        "workflowMode": {
+          "const": "sequence"
+        },
+        "renderMode": {
+          "const": "production_bible"
+        },
+        "selectedMode": {
+          "const": "production_bible"
+        },
+        "selectedBackendPipe": {
+          "const": "long_sequence_bible_pipe"
+        },
+        "selectedPipeDurationMaxSeconds": {
+          "const": 480
+        },
+        "selectedPipeSupportsLongSequence": {
+          "const": true
+        },
+        "targetWithinSelectedPipeDurationRange": {
+          "const": true
+        },
+        "visualBibleBlocksRender": {
+          "const": true
+        },
+        "releaseBlocker": {
+          "type": "string",
+          "minLength": 20
+        }
+      }
+    },
+    "productionBibleMaxDurationScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planId",
+        "targetDurationSeconds",
+        "selectedMode",
+        "selectedBackendPipe",
+        "sequenceTargetClipCount",
+        "executionTargetClipCount",
+        "executionCoverageSeconds",
+        "workflowMode",
+        "renderMode",
+        "requestDurationSeconds",
+        "selectedPipeDurationMaxSeconds",
+        "selectedPipeSupportsLongSequence",
+        "targetWithinSelectedPipeDurationRange",
+        "visualBibleBlocksRender",
+        "canUseAsRenderJobHandoff"
+      ],
+      "properties": {
+        "planId": {
+          "type": "string"
+        },
+        "targetDurationSeconds": {
+          "const": 480
+        },
+        "selectedMode": {
+          "const": "production_bible"
+        },
+        "selectedBackendPipe": {
+          "const": "long_sequence_bible_pipe"
+        },
+        "sequenceTargetClipCount": {
+          "type": "integer",
+          "minimum": 32
+        },
+        "executionTargetClipCount": {
+          "type": "integer",
+          "minimum": 32
+        },
+        "executionCoverageSeconds": {
+          "const": 480
+        },
+        "workflowMode": {
+          "const": "sequence"
+        },
+        "renderMode": {
+          "const": "production_bible"
+        },
+        "requestDurationSeconds": {
+          "const": 480
+        },
+        "selectedPipeDurationMaxSeconds": {
+          "const": 480
+        },
+        "selectedPipeSupportsLongSequence": {
+          "const": true
+        },
+        "targetWithinSelectedPipeDurationRange": {
+          "const": true
+        },
+        "visualBibleBlocksRender": {
+          "const": true
+        },
+        "canUseAsRenderJobHandoff": {
+          "const": false
+        }
       }
     },
     "audioPoliciesScenario": {
@@ -210,13 +867,83 @@
         "audioOffIntentCount"
       ],
       "properties": {
-        "vietnamesePlanLanguage": { "const": "vi" },
-        "vietnameseHandoffAudioMode": { "const": "guided" },
-        "vietnameseIntentCount": { "type": "integer", "minimum": 1 },
-        "chineseHandoffAudioMode": { "const": "guided" },
-        "chineseIntentLanguage": { "const": "zh" },
-        "audioOffHandoffAudioMode": { "const": "none" },
-        "audioOffIntentCount": { "const": 0 }
+        "vietnamesePlanLanguage": {
+          "const": "vi"
+        },
+        "vietnameseHandoffAudioMode": {
+          "const": "hybrid"
+        },
+        "vietnameseIntentCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "chineseHandoffAudioMode": {
+          "const": "hybrid"
+        },
+        "chineseIntentLanguage": {
+          "const": "zh"
+        },
+        "audioOffHandoffAudioMode": {
+          "const": "none"
+        },
+        "audioOffIntentCount": {
+          "const": 0
+        }
+      }
+    },
+    "shortStoryboardPromptContractDiagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shotId",
+        "generateAudio",
+        "hasTimeline",
+        "hasSeedanceMode",
+        "hasRuntimeContract",
+        "hasBoundaryContract",
+        "hasFinalFrameContract",
+        "hasShotNarrationBudget",
+        "hasBeatSpokenWordBudget",
+        "hasAudioProductionPlan",
+        "hasOriginalAudioGuidance"
+      ],
+      "properties": {
+        "shotId": {
+          "type": "string"
+        },
+        "generateAudio": {
+          "type": "boolean"
+        },
+        "hasTimeline": {
+          "type": "boolean"
+        },
+        "hasSeedanceMode": {
+          "type": "boolean"
+        },
+        "hasRuntimeContract": {
+          "type": "boolean",
+          "description": "Merged timing contract. Replaces the separate hasPacingContract + hasMotionContinuity flags: those three prompt sections carried ~230 words of overlapping boilerplate and are now one paragraph stating exact runtime, arc position, state-change cadence and one-continuous-moment motion physics."
+        },
+        "hasBoundaryContract": {
+          "type": "boolean",
+          "description": "Merged boundary contract. Replaces hasInterShotBridge + hasBoundaryChoreography: the transition intent was printed twice and the continuity anchors re-printed; all stated once now, with the anchors living only in the Continuity section."
+        },
+        "hasFinalFrameContract": {
+          "type": "boolean"
+        },
+        "hasShotNarrationBudget": {
+          "type": "boolean"
+        },
+        "hasBeatSpokenWordBudget": {
+          "type": "boolean"
+        },
+        "hasAudioProductionPlan": {
+          "type": "boolean"
+        },
+        "hasOriginalAudioGuidance": {
+          "type": "boolean",
+          "description": "Renamed from hasNativeProviderAudioGuidance; same guidance, provider-neutral wording."
+        }
       }
     }
   }

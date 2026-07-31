@@ -34,7 +34,7 @@ Implementation status as of 2026-06-13: CineJelly-owned production code now emit
 - Unsupported provider reference kind: keep it in sorted references and role scopes, drop it from provider references, and record the provider filter reason.
 - Provider capability match: treat a reference as supported when either its provider `kind` or its role-equivalent reference kind is supported by the selected provider.
 - Too many references: keep the sorted list in the plan, pass only the bounded provider references, and record each overflow item.
-- `source_video_structure`: retain as planning/prose guidance, filter from provider references by default, and record an informational conflict.
+- `source_video_structure`: retain as planning/prose guidance by default, filter from provider references until source rights are explicitly authorized and selected-provider video reference capability is known, and record an informational conflict when it stays planning-only.
 - Face risk without identity reference: record a repair conflict before render spend.
 - Product-logo risk without product reference: record a repair conflict before render spend.
 
@@ -253,7 +253,7 @@ function buildPromptBindingPlan(input: {
 
 - Role-first deterministic reference ordering.
 - Primary-before-supporting weighting inside each role.
-- Planning-only handling for `source_video_structure`.
+- Planning-only-by-default handling for `source_video_structure`, with provider handoff allowed only after source authorization and selected-provider capability evidence.
 - Provider filtering as an explicit plan artifact.
 - Conflict records for missing identity/product anchors and unsupported provider references.
 - Compression notes that explain prompt section order before prompt assembly.
@@ -281,6 +281,7 @@ function buildPromptBindingPlan(input: {
 
 - Verify deterministic ordering with mixed role, priority, and label inputs.
 - Verify `source_video_structure` appears in sorted references and prompt lines but not provider references by default.
+- Verify authorized `source_video_structure` references are included as provider video references only when selected-provider capabilities include video references.
 - Verify overflow drops lower-priority/later-sorted provider references after identity/product/endpoint anchors.
 - Verify face/product-logo risks produce repair conflicts when references are missing.
 - Verify selected-provider reference capabilities are passed into `PromptBindingPlan` before provider request compilation.

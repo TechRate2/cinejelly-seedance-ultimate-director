@@ -26,18 +26,6 @@ export const PRODUCTION_STAGE_ORDER: readonly ProductionStageName[] = [
   "deliver"
 ];
 
-export const PRODUCTION_STAGE_SOURCE_PATTERN_ORIGINS: Readonly<Record<ProductionStageName, readonly string[]>> = {
-  plan: ["HKUDS/ViMax", "vericontext/vibeframe"],
-  storyboard: ["HKUDS/ViMax", "vericontext/vibeframe"],
-  prompt: ["Emily2040/seedance-2.0", "YouMind-OpenLab/awesome-seedance-2-prompts"],
-  source_material: ["harry0703/MoneyPrinterTurbo"],
-  render: ["HKUDS/ViMax", "vericontext/vibeframe"],
-  inspect: ["vericontext/vibeframe"],
-  repair: ["HKUDS/ViMax", "vericontext/vibeframe"],
-  assemble: ["harry0703/MoneyPrinterTurbo", "vericontext/vibeframe"],
-  deliver: ["vericontext/vibeframe"]
-};
-
 export type ProductionStageStatus =
   | "pending"
   | "running"

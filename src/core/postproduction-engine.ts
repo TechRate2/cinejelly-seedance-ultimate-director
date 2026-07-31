@@ -86,7 +86,7 @@ export class PostproductionEngine {
     ].join(",");
   }
 
-  private evenWidthForRatio(targetHeight: 480 | 720 | 1080, ratio: AspectRatio): number {
+  private evenWidthForRatio(targetHeight: 480 | 720 | 1080 | 1440, ratio: AspectRatio): number {
     const width = Math.round(targetHeight * this.ratioValue(ratio));
     return width % 2 === 0 ? width : width + 1;
   }

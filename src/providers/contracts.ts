@@ -9,9 +9,14 @@ import type {
   AudioGenerationResult,
   AssetRegistration,
   AssetRegistrationRequest,
+  AvatarVideoRequest,
   ChatRequest,
   ChatResponse,
+  ImageGenerationRequest,
   Prediction,
+  SpeechSynthesisRequest,
+  SpeechTranscriptionRequest,
+  SpeechTranscriptionResult,
   PredictionPollingContext,
   ProviderCapability,
   StructuredChatRequest,
@@ -39,6 +44,47 @@ export interface VideoProvider {
   getPrediction(predictionId: string, signal?: AbortSignal, context?: PredictionPollingContext): Promise<Prediction>;
   waitForPrediction(predictionId: string, signal?: AbortSignal, context?: PredictionPollingContext): Promise<Prediction>;
   capabilities(modelId?: string): readonly ProviderCapability[];
+  /**
+   * Optional audio-driven avatar generation for TALKING shots (submit-only; callers poll via
+   * waitForPrediction like the other video modes). Feature-check before use.
+   */
+  generateAvatarVideo?(request: AvatarVideoRequest, signal?: AbortSignal): Promise<Prediction>;
+  /**
+   * Optional text-to-speech that voices a talking shot's verbatim line BEFORE avatar generation
+   * (audio-first). Polls to terminal internally and resolves with the audio output URL.
+   */
+  synthesizeSpeech?(request: SpeechSynthesisRequest, signal?: AbortSignal): Promise<Prediction>;
+}
+
+/**
+ * Provider-neutral text-to-speech for voicing talking shots (audio-first avatar pipeline).
+ * Implementations poll to terminal and resolve with the audio output URL in the prediction.
+ */
+export interface SpeechSynthesisProvider {
+  readonly name: string;
+  synthesizeSpeech(request: SpeechSynthesisRequest, signal?: AbortSignal): Promise<Prediction>;
+}
+
+/**
+ * Provider-neutral still-image generation for keyframe-first workflows.
+ * Optional on providers: callers must feature-check before use.
+ */
+export interface ImageProvider {
+  readonly name: string;
+  generateImage(request: ImageGenerationRequest, signal?: AbortSignal): Promise<Prediction>;
+  /** True when an image model is configured and image generation can be attempted. */
+  supportsImageGeneration(): boolean;
+}
+
+/**
+ * Provider-neutral speech-to-text for subtitle generation from user-supplied audio.
+ * Optional on providers: callers must feature-check before use.
+ */
+export interface SpeechProvider {
+  readonly name: string;
+  transcribeAudio(request: SpeechTranscriptionRequest, signal?: AbortSignal): Promise<SpeechTranscriptionResult>;
+  /** True when a speech model is configured and transcription can be attempted. */
+  supportsSpeechToText(): boolean;
 }
 
 export interface AssetProvider {
@@ -60,4 +106,5 @@ export interface AudioProvider {
   audioCapabilities(modelId?: string): readonly AudioGenerationCapability[];
 }
 
-export interface ModelProvider extends LlmProvider, VideoProvider, AssetProvider, AudioProvider {}
+export interface ModelProvider
+  extends LlmProvider, VideoProvider, ImageProvider, SpeechProvider, AssetProvider, AudioProvider {}

@@ -17,8 +17,36 @@ const expectedSnapshots = [
   snapshot("openmontage", "external/upstream/openmontage", "calesthio/OpenMontage", "AGPL-3.0"),
   snapshot("moneyprinterturbo", "external/upstream/moneyprinterturbo", "harry0703/MoneyPrinterTurbo", "MIT"),
   snapshot("directorbench", "external/upstream/directorbench", "jiaminchen-1031/DirectorBench", "No top-level license found in snapshot"),
-  snapshot("director", "external/upstream/director", "video-db/Director", "MIT")
+  snapshot("director", "external/upstream/director", "video-db/Director", "MIT"),
+  // Present on disk and credited in docs/CREDITS.md, but missing from this list until now — so the
+  // parity audit reported "all snapshots accounted for" while three were outside its governance
+  // entirely. Two of them carry NO license at all, which is the strictest possible status (all
+  // rights reserved), and SkyReels ships a model-card "license: other". They stay for reference and
+  // attribution ONLY: no logic may be copied from a snapshot whose license does not permit it, and
+  // openmontage's AGPL-3.0 is the one that would force the whole commercial product open if code
+  // from it were ever imported. See the undeclared-snapshot check below, which now makes a
+  // silently-added snapshot fail the audit instead of going unnoticed.
+  referenceOnlySnapshot("skyreels_v2", "external/upstream/skyreels-v2", "SkyworkAI/SkyReels-V2", "Model-card \"license: other\" — reference only, no code may be copied"),
+  referenceOnlySnapshot("open_ai_ugc", "external/upstream/open-ai-ugc", "Anil-matcha/Open-AI-UGC", "No license file — all rights reserved; reference only, no code may be copied"),
+  referenceOnlySnapshot("open_ai_micro_drama_generator", "external/upstream/open-ai-micro-drama-generator", "Anil-matcha/Open-AI-Micro-Drama-Generator", "No license file — all rights reserved; reference only, no code may be copied")
 ];
+
+/**
+ * Snapshot directories on disk that this file does not declare. An undeclared snapshot is vendored
+ * third-party code nobody is tracking the license of — the exact shape of the three entries added
+ * above, which sat unnoticed because the audit only ever verified that DECLARED snapshots exist and
+ * never looked the other way round.
+ */
+function findUndeclaredSnapshots() {
+  const root = resolve(repoRoot, "external/upstream");
+  if (!existsSync(root)) {
+    return [];
+  }
+  const declared = new Set(expectedSnapshots.map((item) => item.localPath.replace("external/upstream/", "")));
+  return readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !declared.has(entry.name))
+    .map((entry) => `external/upstream/${entry.name}`);
+}
 
 const requiredDocs = [
   "docs/EXTERNAL_SOURCE_SNAPSHOTS.md",
@@ -48,9 +76,23 @@ const requiredReferenceImplementations = [
 
 const sourceScanRoots = ["src", "scripts"];
 const sourceExtensions = new Set([".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".tsx"]);
+const productOwnedHygieneRoots = ["src", "scripts", "schemas", "docs"];
+const pathHygienePattern =
+  /(^|\/)(test|tests|__tests__|__pycache__|mock|mocks|fixture|fixtures|sample|samples|demo|demos|example|examples)(\/|\.|$)|(^|\/)(build|temp|tmp|data\/processed|dataset\/presentation_style|resource\/fonts|resource\/songs)\/|(^|\/).+\.(test|spec)\.(ts|tsx|js|jsx|mjs|cjs|py)$|mock|fixture|stub|dummy|fake|\.(mp4|mov|mkv|avi|webm|mp3|wav|flac|aac|jpg|jpeg|png|gif|webp|ipynb|npy|npz|gz|zip|tar|tgz|ttc|ttf|otf|woff|woff2|bin|onnx|pt|pth|ckpt|safetensors|csv|jsonl|tiktoken|pyc|tsbuildinfo|ds_store|sample|example|snap)$/iu;
 
 function snapshot(id, localPath, upstreamRepository, license) {
-  return { id, localPath, upstreamRepository, license };
+  return { id, localPath, upstreamRepository, license, referenceOnly: false };
+}
+
+/**
+ * A snapshot kept for READING ONLY, whose license does not permit copying code into the product
+ * (no license file at all, or a non-standard one). It must still be inventoried and policed, but
+ * requiring a source-lineage record would be a false claim — a lineage record asserts that product
+ * logic was translated from it, which is exactly what must never happen here. The no-copy promise
+ * is enforced instead by the direct-import scan, which fails if src/ ever imports from a snapshot.
+ */
+function referenceOnlySnapshot(id, localPath, upstreamRepository, license) {
+  return { id, localPath, upstreamRepository, license, referenceOnly: true };
 }
 
 function parseArgs(args) {
@@ -115,9 +157,24 @@ function main() {
   const snapshotInventory = expectedSnapshots.map((item) => buildSnapshotStatus(item, docs));
   const referenceImplementations = requiredReferenceImplementations.map((path) => buildReferenceImplementationStatus(path));
   const directExternalImports = findDirectExternalImports();
+  const sourceHygiene = buildSourceHygiene();
   const functionalParityEstimates = buildFunctionalParityEstimates(docs, snapshotInventory);
-  const checks = buildChecks({ docs, snapshotInventory, referenceImplementations, directExternalImports, functionalParityEstimates });
-  const summary = buildSummary({ snapshotInventory, referenceImplementations, directExternalImports, functionalParityEstimates, checks });
+  const undeclaredSnapshots = findUndeclaredSnapshots();
+  const checks = buildChecks({ docs, snapshotInventory, referenceImplementations, directExternalImports, sourceHygiene, functionalParityEstimates });
+  // Built with the shared check() helper so the entry matches the report schema every other check
+  // uses — a hand-rolled object here published a report the contract validator then rejected.
+  checks.push(check({
+    id: "no_undeclared_snapshots",
+    label: "Every snapshot directory on disk is declared with its license",
+    status: undeclaredSnapshots.length === 0 ? "pass" : "fail",
+    evidence: undeclaredSnapshots.length === 0
+      ? `${expectedSnapshots.length} declared, 0 undeclared`
+      : undeclaredSnapshots.join(", "),
+    blocker: undeclaredSnapshots.length === 0
+      ? undefined
+      : "Vendored third-party code with no declared license. Declare it in expectedSnapshots with its real license, or remove it."
+  }));
+  const summary = buildSummary({ snapshotInventory, referenceImplementations, directExternalImports, sourceHygiene, functionalParityEstimates, checks });
   const status = checks.some((check) => check.status === "fail") ? "fail" : checks.some((check) => check.status === "warn") ? "warn" : "pass";
 
   const report = {
@@ -132,6 +189,7 @@ function main() {
       requiredDocumentCount: requiredDocs.length,
       requiredReferenceImplementationCount: requiredReferenceImplementations.length,
       scannedSourceRoots: sourceScanRoots,
+      sourceHygieneRoots: productOwnedHygieneRoots,
       outputPath: toRepoRelative(options.outputPath)
     },
     summary,
@@ -139,7 +197,9 @@ function main() {
     functionalParityEstimates,
     referenceImplementations,
     directExternalImports,
+    sourceHygiene,
     checks,
+    undeclaredSnapshots,
     releaseGateSummary: {
       snapshotGuardrailsPass: status !== "fail",
       canClaimFullSnapshotParity: false,
@@ -161,7 +221,11 @@ function main() {
 
 function buildFunctionalParityEstimates(docs, snapshotInventory) {
   const parityText = docs["docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md"]?.text ?? "";
-  return snapshotInventory.map((snapshot) => {
+  // Reference-only snapshots are excluded: a functional-parity estimate answers "how much of this
+  // upstream's behaviour have we reproduced", and for a snapshot whose license forbids reuse the
+  // honest answer is "none, deliberately". Demanding a coverage number there would invite someone
+  // to raise it.
+  return snapshotInventory.filter((snapshot) => !snapshot.referenceOnly).map((snapshot) => {
     const row = findMarkdownTableRow(parityText, snapshot.upstreamRepository);
     const capability = row?.[1] ?? "";
     const implementedCoverage = row?.[2] ?? "";
@@ -253,12 +317,18 @@ function buildSnapshotStatus(item, docs) {
   const parityAuditCovered = parityText.includes(item.localPath) || parityText.includes(item.upstreamRepository);
   const projectContextCovered = contextText.includes(item.upstreamRepository) || contextText.includes(item.localPath);
   const sourceLineageCovered = lineageText.includes(item.localPath);
-  const status = directoryPresent && fileCount > 0 && inventoryCovered && subtreePolicyCovered && parityAuditCovered && sourceLineageCovered ? "pass" : "fail";
+  // A reference-only snapshot must be inventoried and policed like any other, but must NOT carry a
+  // source-lineage record: that record asserts product logic was translated from it, and for these
+  // the whole point is that nothing was. Its no-copy promise is covered by the direct-import scan.
+  const status = item.referenceOnly
+    ? (directoryPresent && fileCount > 0 && inventoryCovered && subtreePolicyCovered && !sourceLineageCovered ? "pass" : "fail")
+    : (directoryPresent && fileCount > 0 && inventoryCovered && subtreePolicyCovered && parityAuditCovered && sourceLineageCovered ? "pass" : "fail");
   return {
     id: item.id,
     localPath: item.localPath,
     upstreamRepository: item.upstreamRepository,
     license: item.license,
+    referenceOnly: item.referenceOnly === true,
     status,
     directoryPresent,
     fileCount,
@@ -317,6 +387,27 @@ function findDirectExternalImports() {
   return findings;
 }
 
+function buildSourceHygiene() {
+  const productOwnedFiles = productOwnedHygieneRoots
+    .flatMap((root) => listAllFiles(resolve(repoRoot, root)).map(toRepoRelative))
+    .sort();
+  const productOwnedFindings = productOwnedFiles.filter((path) => pathHygienePattern.test(path));
+  const externalFiles = listAllFiles(resolve(repoRoot, "external/upstream")).map(toRepoRelative).sort();
+  const externalPrunableFiles = externalFiles.filter((path) => pathHygienePattern.test(path));
+  const status = productOwnedFindings.length === 0 && externalPrunableFiles.length === 0 ? "pass" : "fail";
+  return {
+    status,
+    hygienePolicy: "product_source_keeps_no_test_mock_demo_sample_files_and_external_snapshots_are_pruned",
+    productOwnedScannedRoots: productOwnedHygieneRoots,
+    productOwnedFileCount: productOwnedFiles.length,
+    productOwnedTestMockFindingCount: productOwnedFindings.length,
+    productOwnedTestMockFindingsSample: productOwnedFindings.slice(0, 50),
+    externalSnapshotFileCount: externalFiles.length,
+    externalSnapshotPrunableFileCount: externalPrunableFiles.length,
+    externalSnapshotPrunableFilesSample: externalPrunableFiles.slice(0, 50)
+  };
+}
+
 function listSourceFiles(root) {
   if (!existsSync(root)) {
     return [];
@@ -340,7 +431,30 @@ function listSourceFiles(root) {
   return files;
 }
 
-function buildChecks({ docs, snapshotInventory, referenceImplementations, directExternalImports, functionalParityEstimates }) {
+function listAllFiles(root) {
+  if (!existsSync(root)) {
+    return [];
+  }
+  const stat = statSync(root);
+  if (stat.isFile()) {
+    return [root];
+  }
+  const files = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (entry.name === ".git" || entry.name === "node_modules" || entry.name === "dist") {
+      continue;
+    }
+    const child = resolve(root, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listAllFiles(child));
+    } else if (entry.isFile()) {
+      files.push(child);
+    }
+  }
+  return files;
+}
+
+function buildChecks({ docs, snapshotInventory, referenceImplementations, directExternalImports, sourceHygiene, functionalParityEstimates }) {
   const checks = [];
   for (const doc of Object.values(docs)) {
     checks.push(check({
@@ -377,12 +491,21 @@ function buildChecks({ docs, snapshotInventory, referenceImplementations, direct
     evidence: `${directExternalImports.length} direct import finding(s)`,
     blocker: directExternalImports.length === 0 ? undefined : "Production code must translate upstream behavior into owned modules instead of importing snapshot files."
   }));
+  checks.push(check({
+    id: "source_hygiene_pruned_snapshots",
+    label: "Product source has no test/mock/demo files and external snapshots are pruned",
+    status: sourceHygiene.status,
+    evidence: `${sourceHygiene.productOwnedTestMockFindingCount} product finding(s), ${sourceHygiene.externalSnapshotPrunableFileCount} external snapshot pruning finding(s)`,
+    blocker: sourceHygiene.status === "pass"
+      ? undefined
+      : "Remove product-owned test/mock/demo files or prune upstream snapshot tests/examples/build/temp/media before commercial handoff."
+  }));
   const missingFunctionalEstimates = functionalParityEstimates.filter((item) => item.status !== "estimated");
   checks.push(check({
     id: "functional_parity_estimate_coverage",
     label: "Static parity audit has functional estimates for every configured snapshot",
     status: missingFunctionalEstimates.length === 0 ? "pass" : "fail",
-    evidence: `${functionalParityEstimates.length - missingFunctionalEstimates.length}/${snapshotInventory.length} estimate row(s) covered`,
+    evidence: `${functionalParityEstimates.length - missingFunctionalEstimates.length}/${snapshotInventory.filter((item) => !item.referenceOnly).length} estimate row(s) covered (reference-only snapshots excluded by design)`,
     blocker: missingFunctionalEstimates.length === 0
       ? undefined
       : "Every configured snapshot must have a parseable functional parity estimate before operator reports can compare upstream coverage."
@@ -398,7 +521,7 @@ function buildChecks({ docs, snapshotInventory, referenceImplementations, direct
       : undefined
   }));
   const parityText = docs["docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md"]?.text ?? "";
-  const staticParityAuditRefusesFullClaim = parityText.includes("No claim of 100% parity") || parityText.includes("No first-party web UI");
+  const staticParityAuditRefusesFullClaim = parityText.includes("No claim of 100% parity");
   checks.push(check({
     id: "static_parity_audit_keeps_no_100_percent_claim",
     label: "Static parity audit refuses 100% parity claim",
@@ -419,7 +542,7 @@ function check(value) {
   };
 }
 
-function buildSummary({ snapshotInventory, referenceImplementations, directExternalImports, functionalParityEstimates, checks }) {
+function buildSummary({ snapshotInventory, referenceImplementations, directExternalImports, sourceHygiene, functionalParityEstimates, checks }) {
   const estimatedItems = functionalParityEstimates.filter((item) => item.status === "estimated");
   const minValues = estimatedItems.map((item) => item.estimateMinPercent);
   const maxValues = estimatedItems.map((item) => item.estimateMaxPercent);
@@ -435,6 +558,8 @@ function buildSummary({ snapshotInventory, referenceImplementations, directExter
     averageSnapshotParityEstimateMaxPercent: averageRounded(maxValues),
     referenceImplementationCount: referenceImplementations.filter((item) => item.present).length,
     directExternalImportFindingCount: directExternalImports.length,
+    productOwnedTestMockFindingCount: sourceHygiene.productOwnedTestMockFindingCount,
+    externalSnapshotPrunableFileCount: sourceHygiene.externalSnapshotPrunableFileCount,
     passedChecks: checks.filter((item) => item.status === "pass").length,
     warningChecks: checks.filter((item) => item.status === "warn").length,
     failedChecks: checks.filter((item) => item.status === "fail").length

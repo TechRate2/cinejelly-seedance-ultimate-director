@@ -68,8 +68,19 @@ export class AtlasCloudHttpClient {
     init: RequestInit,
     signal?: AbortSignal
   ): Promise<TValue> {
+    // An already-aborted caller signal has fired its abort event before we can listen;
+    // without this pre-check the request would still go out (e.g. submitting a paid
+    // generation after the operation was canceled).
+    if (signal?.aborted) {
+      throw this.abortProviderError(signal.reason);
+    }
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(new Error("Atlas Cloud request timed out.")), this.timeoutMs);
+    // Marker property distinguishes OUR request timeout from a caller abort whose reason
+    // text merely mentions "timeout" — only our own timeouts classify as retryable.
+    const internalTimeoutReason = Object.assign(new Error("Atlas Cloud request timed out."), {
+      atlasInternalTimeout: true as const
+    });
+    const timeout = setTimeout(() => controller.abort(internalTimeoutReason), this.timeoutMs);
     const abort = () => controller.abort(signal?.reason);
     signal?.addEventListener("abort", abort, { once: true });
 
@@ -232,10 +243,13 @@ export class AtlasCloudHttpClient {
   }
 
   private isTimeoutReason(reason: unknown): boolean {
-    if (reason instanceof Error) {
-      return /timed out|timeout/i.test(reason.message);
-    }
-    return typeof reason === "string" && /timed out|timeout/i.test(reason);
+    // Only the client's own timeout marker counts: a caller-initiated abort whose reason
+    // happens to contain "timeout" must stay REQUEST_ABORTED (not retryable).
+    return Boolean(
+      reason &&
+      typeof reason === "object" &&
+      (reason as { atlasInternalTimeout?: boolean }).atlasInternalTimeout === true
+    );
   }
 
   private abortDetails(reason: unknown): Record<string, string> | undefined {

@@ -14,7 +14,7 @@ if (tsc.status !== 0) {
   process.exit(tsc.status ?? 1);
 }
 
-const smoke = spawnSync(process.execPath, ["scripts/run-short-viral-intelligence-smoke.mjs"], {
+const smoke = spawnSync(process.execPath, ["tests/run-short-viral-intelligence-smoke.mjs"], {
   cwd: repoRoot,
   stdio: "inherit"
 });

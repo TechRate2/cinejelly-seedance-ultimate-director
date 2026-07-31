@@ -17,17 +17,36 @@
     "functionalParityEstimates",
     "referenceImplementations",
     "directExternalImports",
+    "sourceHygiene",
     "checks",
     "releaseGateSummary",
-    "nextActions"
+    "nextActions",
+    "undeclaredSnapshots"
   ],
   "properties": {
-    "schemaVersion": { "const": "cinejelly.snapshot-parity-audit.v1" },
-    "generatedAt": { "type": "string", "format": "date-time" },
-    "status": { "enum": ["pass", "warn", "fail"] },
-    "noSpend": { "const": true },
-    "networkCallsMade": { "const": false },
-    "providerCallsMade": { "const": false },
+    "schemaVersion": {
+      "const": "cinejelly.snapshot-parity-audit.v1"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "enum": [
+        "pass",
+        "warn",
+        "fail"
+      ]
+    },
+    "noSpend": {
+      "const": true
+    },
+    "networkCallsMade": {
+      "const": false
+    },
+    "providerCallsMade": {
+      "const": false
+    },
     "checkedInputs": {
       "type": "object",
       "additionalProperties": false,
@@ -36,14 +55,37 @@
         "requiredDocumentCount",
         "requiredReferenceImplementationCount",
         "scannedSourceRoots",
+        "sourceHygieneRoots",
         "outputPath"
       ],
       "properties": {
-        "expectedSnapshotCount": { "type": "integer", "minimum": 0 },
-        "requiredDocumentCount": { "type": "integer", "minimum": 0 },
-        "requiredReferenceImplementationCount": { "type": "integer", "minimum": 0 },
-        "scannedSourceRoots": { "type": "array", "items": { "type": "string" } },
-        "outputPath": { "type": "string" }
+        "expectedSnapshotCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "requiredDocumentCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "requiredReferenceImplementationCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scannedSourceRoots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sourceHygieneRoots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outputPath": {
+          "type": "string"
+        }
       }
     },
     "summary": {
@@ -61,55 +103,133 @@
         "averageSnapshotParityEstimateMaxPercent",
         "referenceImplementationCount",
         "directExternalImportFindingCount",
+        "productOwnedTestMockFindingCount",
+        "externalSnapshotPrunableFileCount",
         "passedChecks",
         "warningChecks",
         "failedChecks"
       ],
       "properties": {
-        "snapshotDirectoriesPresent": { "type": "integer", "minimum": 0 },
-        "expectedSnapshotCount": { "type": "integer", "minimum": 0 },
-        "inventoryCoverageCount": { "type": "integer", "minimum": 0 },
-        "sourceLineageCoverageCount": { "type": "integer", "minimum": 0 },
-        "functionalParityEstimateCount": { "type": "integer", "minimum": 0 },
-        "lowestSnapshotParityEstimatePercent": { "type": "integer", "minimum": 0, "maximum": 100 },
-        "highestSnapshotParityEstimatePercent": { "type": "integer", "minimum": 0, "maximum": 100 },
-        "averageSnapshotParityEstimateMinPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
-        "averageSnapshotParityEstimateMaxPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
-        "referenceImplementationCount": { "type": "integer", "minimum": 0 },
-        "directExternalImportFindingCount": { "type": "integer", "minimum": 0 },
-        "passedChecks": { "type": "integer", "minimum": 0 },
-        "warningChecks": { "type": "integer", "minimum": 0 },
-        "failedChecks": { "type": "integer", "minimum": 0 }
+        "snapshotDirectoriesPresent": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expectedSnapshotCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inventoryCoverageCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sourceLineageCoverageCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "functionalParityEstimateCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lowestSnapshotParityEstimatePercent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "highestSnapshotParityEstimatePercent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "averageSnapshotParityEstimateMinPercent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "averageSnapshotParityEstimateMaxPercent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "referenceImplementationCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "directExternalImportFindingCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "productOwnedTestMockFindingCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "externalSnapshotPrunableFileCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passedChecks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warningChecks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failedChecks": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "snapshotInventory": {
       "type": "array",
-      "items": { "$ref": "#/$defs/snapshotInventoryItem" }
+      "items": {
+        "$ref": "#/$defs/snapshotInventoryItem"
+      }
     },
     "functionalParityEstimates": {
       "type": "array",
-      "items": { "$ref": "#/$defs/functionalParityEstimateItem" }
+      "items": {
+        "$ref": "#/$defs/functionalParityEstimateItem"
+      }
     },
     "referenceImplementations": {
       "type": "array",
-      "items": { "$ref": "#/$defs/referenceImplementationItem" }
+      "items": {
+        "$ref": "#/$defs/referenceImplementationItem"
+      }
     },
     "directExternalImports": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["path", "line", "kind"],
+        "required": [
+          "path",
+          "line",
+          "kind"
+        ],
         "properties": {
-          "path": { "type": "string" },
-          "line": { "type": "integer", "minimum": 1 },
-          "kind": { "type": "string" }
+          "path": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "kind": {
+            "type": "string"
+          }
         }
       }
     },
+    "sourceHygiene": {
+      "$ref": "#/$defs/sourceHygiene"
+    },
     "checks": {
       "type": "array",
-      "items": { "$ref": "#/$defs/check" }
+      "items": {
+        "$ref": "#/$defs/check"
+      }
     },
     "releaseGateSummary": {
       "type": "object",
@@ -121,16 +241,98 @@
         "releaseBlocker"
       ],
       "properties": {
-        "snapshotGuardrailsPass": { "type": "boolean" },
-        "canClaimFullSnapshotParity": { "type": "boolean" },
-        "canReleaseToCustomerTraffic": { "type": "boolean" },
-        "releaseBlocker": { "type": "string" }
+        "snapshotGuardrailsPass": {
+          "type": "boolean"
+        },
+        "canClaimFullSnapshotParity": {
+          "type": "boolean"
+        },
+        "canReleaseToCustomerTraffic": {
+          "type": "boolean"
+        },
+        "releaseBlocker": {
+          "type": "string"
+        }
       }
     },
-    "nextActions": { "type": "array", "items": { "type": "string" } },
-    "error": { "type": "string" }
+    "nextActions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "error": {
+      "type": "string"
+    },
+    "undeclaredSnapshots": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Snapshot directories present on disk but not declared with a license. Must be empty."
+    }
   },
   "$defs": {
+    "sourceHygiene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "hygienePolicy",
+        "productOwnedScannedRoots",
+        "productOwnedFileCount",
+        "productOwnedTestMockFindingCount",
+        "productOwnedTestMockFindingsSample",
+        "externalSnapshotFileCount",
+        "externalSnapshotPrunableFileCount",
+        "externalSnapshotPrunableFilesSample"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "pass",
+            "fail"
+          ]
+        },
+        "hygienePolicy": {
+          "type": "string"
+        },
+        "productOwnedScannedRoots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "productOwnedFileCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "productOwnedTestMockFindingCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "productOwnedTestMockFindingsSample": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "externalSnapshotFileCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "externalSnapshotPrunableFileCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "externalSnapshotPrunableFilesSample": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "snapshotInventoryItem": {
       "type": "object",
       "additionalProperties": false,
@@ -146,21 +348,55 @@
         "subtreePolicyCovered",
         "parityAuditCovered",
         "projectContextCovered",
-        "sourceLineageCovered"
+        "sourceLineageCovered",
+        "referenceOnly"
       ],
       "properties": {
-        "id": { "type": "string" },
-        "localPath": { "type": "string" },
-        "upstreamRepository": { "type": "string" },
-        "license": { "type": "string" },
-        "status": { "enum": ["pass", "warn", "fail"] },
-        "directoryPresent": { "type": "boolean" },
-        "fileCount": { "type": "integer", "minimum": 0 },
-        "inventoryCovered": { "type": "boolean" },
-        "subtreePolicyCovered": { "type": "boolean" },
-        "parityAuditCovered": { "type": "boolean" },
-        "projectContextCovered": { "type": "boolean" },
-        "sourceLineageCovered": { "type": "boolean" }
+        "id": {
+          "type": "string"
+        },
+        "localPath": {
+          "type": "string"
+        },
+        "upstreamRepository": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "warn",
+            "fail"
+          ]
+        },
+        "directoryPresent": {
+          "type": "boolean"
+        },
+        "fileCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inventoryCovered": {
+          "type": "boolean"
+        },
+        "subtreePolicyCovered": {
+          "type": "boolean"
+        },
+        "parityAuditCovered": {
+          "type": "boolean"
+        },
+        "projectContextCovered": {
+          "type": "boolean"
+        },
+        "sourceLineageCovered": {
+          "type": "boolean"
+        },
+        "referenceOnly": {
+          "type": "boolean",
+          "description": "Reference-only snapshot: inventoried and policed, but its license forbids copying code, so it carries no source-lineage record."
+        }
       }
     },
     "functionalParityEstimateItem": {
@@ -181,41 +417,104 @@
         "releaseEvidence"
       ],
       "properties": {
-        "id": { "type": "string" },
-        "localPath": { "type": "string" },
-        "upstreamRepository": { "type": "string" },
-        "status": { "enum": ["estimated", "missing_estimate"] },
-        "estimateMinPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
-        "estimateMaxPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
-        "estimateText": { "type": "string" },
-        "mainCapability": { "type": "string" },
-        "implementedCoverage": { "type": "string" },
-        "mainGaps": { "type": "string" },
-        "sourceAuditPath": { "type": "string" },
-        "releaseEvidence": { "const": false }
+        "id": {
+          "type": "string"
+        },
+        "localPath": {
+          "type": "string"
+        },
+        "upstreamRepository": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "estimated",
+            "missing_estimate"
+          ]
+        },
+        "estimateMinPercent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "estimateMaxPercent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "estimateText": {
+          "type": "string"
+        },
+        "mainCapability": {
+          "type": "string"
+        },
+        "implementedCoverage": {
+          "type": "string"
+        },
+        "mainGaps": {
+          "type": "string"
+        },
+        "sourceAuditPath": {
+          "type": "string"
+        },
+        "releaseEvidence": {
+          "const": false
+        }
       }
     },
     "referenceImplementationItem": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["path", "present", "hasPurposeSection", "hasAcceptanceSection"],
+      "required": [
+        "path",
+        "present",
+        "hasPurposeSection",
+        "hasAcceptanceSection"
+      ],
       "properties": {
-        "path": { "type": "string" },
-        "present": { "type": "boolean" },
-        "hasPurposeSection": { "type": "boolean" },
-        "hasAcceptanceSection": { "type": "boolean" }
+        "path": {
+          "type": "string"
+        },
+        "present": {
+          "type": "boolean"
+        },
+        "hasPurposeSection": {
+          "type": "boolean"
+        },
+        "hasAcceptanceSection": {
+          "type": "boolean"
+        }
       }
     },
     "check": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "label", "status", "evidence"],
+      "required": [
+        "id",
+        "label",
+        "status",
+        "evidence"
+      ],
       "properties": {
-        "id": { "type": "string" },
-        "label": { "type": "string" },
-        "status": { "enum": ["pass", "warn", "fail"] },
-        "evidence": { "type": "string" },
-        "blocker": { "type": "string" }
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "warn",
+            "fail"
+          ]
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "blocker": {
+          "type": "string"
+        }
       }
     }
   }

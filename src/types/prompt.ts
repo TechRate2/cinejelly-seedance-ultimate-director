@@ -95,6 +95,7 @@ export type PromptBindingConflictCode =
   | "source_video_structure_planning_only"
   | "unsupported_provider_reference_kind"
   | "provider_reference_limit_exceeded"
+  | "provider_reference_family_limit_exceeded"
   | "duplicate_role_reference";
 
 export type PromptCompressionSection =
@@ -143,6 +144,25 @@ export interface PromptBindingPlan {
   readonly compressionNotes: readonly PromptCompressionNote[];
 }
 
+export type StyleRegister = "professional_cinematic" | "natural_phone_kol";
+
+/**
+ * Per-request style DNA AUTHORED by the LLM for THIS brief (analyst or scriptwriter) — replaces the
+ * fixed per-niche lookup tables as the primary style source. Each axis overrides/extends the
+ * invariant REGISTER_GRAMMAR frame; absent axes fall back to the register text alone.
+ */
+export interface StyleDna {
+  readonly register: StyleRegister;
+  readonly optics?: string;
+  readonly lighting?: string;
+  readonly palette?: string;
+  readonly motion?: string;
+  readonly performance?: string;
+  readonly audioFeel?: string;
+  readonly moodWords?: readonly string[];
+  readonly avoid?: readonly string[];
+}
+
 export interface TimelineSegment {
   readonly startSecond: number;
   readonly endSecond: number;
@@ -173,6 +193,22 @@ export interface ShotContract {
   readonly lighting: string;
   readonly style?: string;
   readonly audioIntent?: string;
+  /**
+   * A finished, author-supplied dialogue/narration line to be spoken VERBATIM (script-first mode).
+   * Unlike audioIntent (guidance the compiler may rephrase), this is emitted to the provider exactly
+   * as written and is never normalized, truncated, or duplicated across a beat's sub-clips.
+   */
+  readonly spokenLine?: string;
+  /**
+   * True on the 2nd+ sub-clip of a beat whose verbatim spokenLine rides the FIRST sub-clip: this
+   * clip is still delivering that scripted narration, so word caps must not apply here either —
+   * they would contradict the beat-level verbatim contract mid-delivery.
+   */
+  readonly spokenLineContinuation?: boolean;
+  /** One visible emotional turn (state A -> state B) the beat must play — the anti-stiffness craft law. */
+  readonly emotionalTurn?: string;
+  /** LLM-authored per-request style DNA (register + axis overrides); legacy DNA tables are fallback-only. */
+  readonly styleDna?: StyleDna;
   readonly transitionIntent?: string;
   readonly timeline?: readonly TimelineSegment[];
   readonly references: readonly PromptReference[];
@@ -191,6 +227,20 @@ export interface PromptCompilerInput {
   readonly maxProviderReferences?: number;
 }
 
+/**
+ * Audio-first avatar render plan for a TALKING shot. When present, the render producer routes the
+ * shot to the audio-driven avatar model (portrait/keyframe image + pre-generated TTS voiceover)
+ * instead of the general video model, so lip-sync, expression, and gesture follow the real speech.
+ */
+export interface CompiledPromptAvatarPlan {
+  readonly modelId: string;
+  readonly imageUrl: string;
+  readonly audioUrl: string;
+  readonly prompt?: string;
+  readonly outputResolution?: 720 | 1080;
+  readonly seed?: number;
+}
+
 export interface CompiledPrompt {
   readonly shotId: string;
   readonly prompt: string;
@@ -201,4 +251,5 @@ export interface CompiledPrompt {
   readonly inspectionExpectations: readonly string[];
   readonly repairHints: readonly string[];
   readonly videoRequest: VideoGenerationRequest;
+  readonly avatarPlan?: CompiledPromptAvatarPlan;
 }

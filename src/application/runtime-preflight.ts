@@ -4,13 +4,21 @@
  */
 
 import { constants } from "node:fs";
-import { access, mkdir, readFile } from "node:fs/promises";
+import { access, mkdir, readFile, statfs } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { RenderJobHistoryStore } from "../api/render-job-history-store.js";
 import { FileRenderProviderHandoffLeaseStore } from "../api/render-provider-handoff.js";
 import { readRenderProviderLeasePath } from "../api/render-provider-handoff-lease-service.js";
 import { parseApiClientPoliciesJson } from "../api/api-client-policy.js";
 import { readProductionGraphResumeQueuePath } from "../api/production-graph-resume-queue-service.js";
+import {
+  readShortChannelStyleLibraryPath,
+  ShortChannelStyleLibraryStore
+} from "../api/short-channel-style-library-store.js";
+import {
+  readShortPipelineSessionStorePath,
+  ShortPipelineSessionStore
+} from "../api/short-pipeline-session-store.js";
 import { GeneratedAudioAssetResolver } from "../core/generated-audio-asset-resolver.js";
 import { LocalMaterialLibraryAdapter } from "../core/local-material-library-adapter.js";
 import { FileProductionGraphResumeQueueStore } from "../core/production-graph-resume-state.js";
@@ -49,6 +57,15 @@ export class RuntimePreflight {
       this.present("ATLASCLOUD_LLM_MODEL", this.env.ATLASCLOUD_LLM_MODEL),
       this.present("ATLASCLOUD_SEEDANCE_STANDARD_MODEL", this.env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL),
       this.present("ATLASCLOUD_SEEDANCE_FAST_MODEL", this.env.ATLASCLOUD_SEEDANCE_FAST_MODEL),
+      this.optionalModelId("ATLASCLOUD_SEEDANCE_MINI_MODEL", this.env.ATLASCLOUD_SEEDANCE_MINI_MODEL),
+      // Feature models: each gates an ADVANCED capability. Absent = that feature is simply off
+      // (never a hard fail), but the operator must see WHICH features are live before launch —
+      // e.g. a missing ATLASCLOUD_SPEECH_MODEL silently 503s the whole Dub/Subtitle surface.
+      this.featureModel("ATLASCLOUD_IMAGE_MODEL", this.env.ATLASCLOUD_IMAGE_MODEL, "Keyframe-first ảnh mở đầu (khóa nhận diện nhân vật/sản phẩm)"),
+      this.featureModel("ATLASCLOUD_IMAGE_REFERENCE_MODEL", this.env.ATLASCLOUD_IMAGE_REFERENCE_MODEL, "Keyframe theo ảnh tham chiếu tải lên"),
+      this.featureModel("ATLASCLOUD_AVATAR_MODEL", this.env.ATLASCLOUD_AVATAR_MODEL, "Cảnh nhân vật nói — avatar khớp môi (OmniHuman)"),
+      this.featureModel("ATLASCLOUD_TTS_MODEL", this.env.ATLASCLOUD_TTS_MODEL, "Đọc giọng thuyết minh (TTS) cho talking-shot + lồng tiếng video"),
+      this.featureModel("ATLASCLOUD_SPEECH_MODEL", this.env.ATLASCLOUD_SPEECH_MODEL, "Lồng tiếng / Phụ đề: nhận dạng giọng nói (STT) từ video có sẵn"),
       this.apiAuthCheck(),
       this.optionalPort("PORT", this.env.PORT),
       this.optionalAtlasEndpointUrl("ATLASCLOUD_LLM_BASE_URL", this.env.ATLASCLOUD_LLM_BASE_URL, ATLAS_LLM_PATH),
@@ -108,6 +125,10 @@ export class RuntimePreflight {
     ];
 
     checks.push(await this.outputDirectoryCheck("CINEJELLY_OUTPUT_DIR", this.env.CINEJELLY_OUTPUT_DIR));
+    checks.push(await this.databaseBackendCheck());
+    checks.push(await this.freeDiskCheck());
+    checks.push(await this.shortPipelineSessionStoreCheck());
+    checks.push(await this.shortChannelStyleLibraryStoreCheck());
     checks.push(await this.renderJobHistoryStoreCheck());
     checks.push(await this.renderProviderLeaseStoreCheck());
     checks.push(await this.productionGraphResumeQueueStoreCheck());
@@ -248,6 +269,72 @@ export class RuntimePreflight {
         message: error instanceof Error
           ? `CINEJELLY_API_JOB_HISTORY_PATH is not usable: ${error.message}`
           : "CINEJELLY_API_JOB_HISTORY_PATH is not usable."
+      };
+    }
+  }
+
+  private async shortPipelineSessionStoreCheck(): Promise<PreflightCheck> {
+    let storePath: string;
+    try {
+      storePath = readShortPipelineSessionStorePath(this.env);
+    } catch (error) {
+      return {
+        name: "CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH",
+        status: "fail",
+        message: error instanceof Error ? error.message : "CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH is invalid."
+      };
+    }
+    try {
+      await mkdir(dirname(resolve(storePath)), { recursive: true });
+      await access(dirname(resolve(storePath)), constants.W_OK);
+      new ShortPipelineSessionStore({ storePath }).loadRecords();
+      return {
+        name: "CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH",
+        status: "pass",
+        message: this.env.CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH?.trim()
+          ? "Short pipeline session store points to a writable redacted session file."
+          : "Short pipeline session store uses the default writable file under CINEJELLY_OUTPUT_DIR."
+      };
+    } catch (error) {
+      return {
+        name: "CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH",
+        status: "fail",
+        message: error instanceof Error
+          ? `Short pipeline session store is not usable: ${error.message}`
+          : "Short pipeline session store is not usable."
+      };
+    }
+  }
+
+  private async shortChannelStyleLibraryStoreCheck(): Promise<PreflightCheck> {
+    let storePath: string;
+    try {
+      storePath = readShortChannelStyleLibraryPath(this.env);
+    } catch (error) {
+      return {
+        name: "CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH",
+        status: "fail",
+        message: error instanceof Error ? error.message : "CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH is invalid."
+      };
+    }
+    try {
+      await mkdir(dirname(resolve(storePath)), { recursive: true });
+      await access(dirname(resolve(storePath)), constants.W_OK);
+      new ShortChannelStyleLibraryStore({ storePath }).loadRecords();
+      return {
+        name: "CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH",
+        status: "pass",
+        message: this.env.CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH?.trim()
+          ? "Short channel-style library points to a writable redacted profile file."
+          : "Short channel-style library uses the default writable file under CINEJELLY_OUTPUT_DIR."
+      };
+    } catch (error) {
+      return {
+        name: "CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH",
+        status: "fail",
+        message: error instanceof Error
+          ? `Short channel-style library is not usable: ${error.message}`
+          : "Short channel-style library is not usable."
       };
     }
   }
@@ -534,6 +621,30 @@ export class RuntimePreflight {
       : { name, status: "pass", message: `${name} is not set; shared Atlas API key will be used.` };
   }
 
+  private optionalModelId(name: string, value: string | undefined): PreflightCheck {
+    if (!value?.trim()) {
+      return { name, status: "pass", message: `${name} is not set; capability fallback will be used when needed.` };
+    }
+    const issues = this.modelIdIssues(name, [value.trim()]);
+    return issues.length > 0
+      ? { name, status: "fail", message: issues.join(" ") }
+      : { name, status: "pass", message: `${name} is configured.` };
+  }
+
+  /**
+   * Advanced-feature model: reports whether the feature it gates is live. Absent is a WARN (the
+   * feature is off, the rest of the platform works), a malformed id is a FAIL.
+   */
+  private featureModel(name: string, value: string | undefined, feature: string): PreflightCheck {
+    if (!value?.trim()) {
+      return { name, status: "warn", message: `${name} chưa đặt → TÍNH NĂNG TẮT: ${feature}. (Đặt model tương ứng trong .env để bật.)` };
+    }
+    const issues = this.modelIdIssues(name, [value.trim()]);
+    return issues.length > 0
+      ? { name, status: "fail", message: issues.join(" ") }
+      : { name, status: "pass", message: `${name} bật: ${feature}.` };
+  }
+
   private apiAuthCheck(): PreflightCheck {
     const disabledAuth = this.env.CINEJELLY_DISABLE_API_AUTH?.trim().toLowerCase();
     if (disabledAuth && disabledAuth !== "true" && disabledAuth !== "false") {
@@ -739,6 +850,7 @@ export class RuntimePreflight {
 
   private configuredSeedanceModelIds(): readonly string[] {
     return [
+      this.env.ATLASCLOUD_SEEDANCE_MINI_MODEL?.trim(),
       this.env.ATLASCLOUD_SEEDANCE_FAST_MODEL?.trim(),
       this.env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL?.trim()
     ].filter((value): value is string => Boolean(value));
@@ -783,7 +895,7 @@ export class RuntimePreflight {
       }
       const missingModels = configuredSeedanceModels.filter((modelId) => !capabilityModels.has(modelId));
       if (missingModels.length > 0) {
-        issues.push("ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON must include the configured fast and standard Seedance model IDs.");
+        issues.push("ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON must include every configured Seedance model ID.");
       }
       return issues;
     } catch {
@@ -909,6 +1021,71 @@ export class RuntimePreflight {
     }
   }
 
+  private async databaseBackendCheck(): Promise<PreflightCheck> {
+    const name = "CINEJELLY_DATABASE_KIND";
+    const raw = this.env.CINEJELLY_DATABASE_KIND?.trim().toLowerCase() || "json";
+    if (raw !== "json" && raw !== "sqlite" && raw !== "postgres") {
+      return { name, status: "fail", message: `CINEJELLY_DATABASE_KIND phải là "json", "sqlite" hoặc "postgres" (hiện: "${raw}"). Sửa trong .env.` };
+    }
+    if (raw === "json") {
+      return { name, status: "pass", message: "Lưu dữ liệu: JSON (mặc định, không cần cài thêm gì)." };
+    }
+    if (raw === "sqlite") {
+      const parts = process.versions.node.split(".").map((part) => Number(part));
+      const major = parts[0] ?? 0;
+      const minor = parts[1] ?? 0;
+      if (major < 22 || (major === 22 && minor < 5)) {
+        return {
+          name,
+          status: "fail",
+          message: `Lưu dữ liệu SQLite cần Node >= 22.5 nhưng đang chạy Node ${process.versions.node}. Nâng Node lên 22+, hoặc đặt CINEJELLY_DATABASE_KIND=json hoặc postgres.`
+        };
+      }
+      return { name, status: "pass", message: `Lưu dữ liệu: SQLite (Node ${process.versions.node} hỗ trợ node:sqlite).` };
+    }
+    // postgres
+    if (!this.env.CINEJELLY_POSTGRES_URL?.trim()) {
+      return {
+        name,
+        status: "fail",
+        message: "CINEJELLY_DATABASE_KIND=postgres cần CINEJELLY_POSTGRES_URL (chuỗi kết nối Neon/Postgres, dạng postgresql://...). Điền vào .env."
+      };
+    }
+    try {
+      // Computed specifier so the compiler doesn't require pg types when postgres isn't chosen.
+      const pgModuleName = "pg";
+      await import(pgModuleName);
+    } catch {
+      return { name, status: "fail", message: 'CINEJELLY_DATABASE_KIND=postgres cần gói "pg": chạy `npm install pg` trên máy chủ (một lần), rồi khởi động lại.' };
+    }
+    return {
+      name,
+      status: "warn",
+      message: "Lưu dữ liệu: Postgres — cấu hình có URL và gói pg. LƯU Ý: preflight KHÔNG kết nối thử; khi máy chủ chạy hãy mở /health để xem trạng thái kết nối cơ sở dữ liệu thật (Neon có thể đang ngủ)."
+    };
+  }
+
+  private async freeDiskCheck(): Promise<PreflightCheck> {
+    const name = "Ổ đĩa trống (thư mục lưu video)";
+    const outputDirectory = resolve(this.env.CINEJELLY_OUTPUT_DIR?.trim() || "assets/output_deliverables");
+    try {
+      await mkdir(outputDirectory, { recursive: true });
+      const stats = await statfs(outputDirectory);
+      const freeGb = (stats.bavail * stats.bsize) / 1024 ** 3;
+      const minGb = 2;
+      if (freeGb < minGb) {
+        return {
+          name,
+          status: "warn",
+          message: `Ổ đĩa gần đầy: chỉ còn ${freeGb.toFixed(1)} GB. Xóa bớt video/file cũ trong thư mục output (hoặc bật tự-dọn CINEJELLY_OUTPUT_RETENTION_DAYS); khi hết chỗ, render và cả việc lưu tài khoản sẽ lỗi.`
+        };
+      }
+      return { name, status: "pass", message: `Ổ đĩa còn ${freeGb.toFixed(1)} GB trống.` };
+    } catch {
+      return { name, status: "warn", message: `Không đọc được dung lượng ổ đĩa cho thư mục ${outputDirectory}.` };
+    }
+  }
+
   private capabilityCheck(value: string | undefined): PreflightCheck {
     if (!value?.trim()) {
       return {
@@ -976,11 +1153,39 @@ export class RuntimePreflight {
         ) {
           return { valid: false, message: "Each provider capability must include provider, modelId, modes, durations, resolutions, ratios, and references." };
         }
+        const settingsIssue = this.providerCapabilitySettingsIssue(payload.settings);
+        if (settingsIssue) {
+          return { valid: false, message: settingsIssue };
+        }
       }
       return { valid: true, count: parsed.length };
     } catch {
       return { valid: false, message: "ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON must be valid JSON." };
     }
+  }
+
+  private providerCapabilitySettingsIssue(value: unknown): string | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+    const settings = value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+    if (!settings) {
+      return "Provider capability settings must be an object when provided.";
+    }
+    for (const name of ["generateAudio", "returnLastFrame", "watermark"] as const) {
+      if (settings[name] !== undefined && typeof settings[name] !== "boolean") {
+        return `Provider capability settings.${name} must be boolean when provided.`;
+      }
+    }
+    if (
+      settings.bitrateModes !== undefined &&
+      (!Array.isArray(settings.bitrateModes) || !settings.bitrateModes.every((item) => item === "standard" || item === "high"))
+    ) {
+      return "Provider capability settings.bitrateModes must contain standard and/or high when provided.";
+    }
+    return undefined;
   }
 
   private parseGeneratedAudioCapabilityJson(value: string): { readonly valid: true; readonly count: number } | { readonly valid: false; readonly message: string } {

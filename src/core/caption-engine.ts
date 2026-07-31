@@ -3,7 +3,7 @@
  * It writes standards-compatible SRT sidecars and can optionally burn captions into the video.
  */
 
-import { basename, join, relative } from "node:path";
+import { join, resolve } from "node:path";
 import type { CaptionArtifact, CaptionCue, CaptionRenderInput } from "../types/caption.js";
 import { ensureDirectory, writeFileEnsuringDirectory } from "../utils/files.js";
 import { readMediaToolCommand } from "../utils/media-tools.js";
@@ -58,10 +58,17 @@ export class CaptionEngine {
   }
 
   private toSrt(cues: readonly CaptionCue[]): string {
-    return cues
+    // ASR/word-timed cues can arrive out of order; SRT timestamps must be monotonic.
+    const ordered = [...cues].sort(
+      (left, right) => left.startSecond - right.startSecond || left.endSecond - right.endSecond
+    );
+    return ordered
       .map((cue, index) => {
         this.validateCue(cue);
-        return `${index + 1}\n${this.timestamp(cue.startSecond)} --> ${this.timestamp(cue.endSecond)}\n${this.escapeText(cue.text)}\n`;
+        const startMs = Math.round(cue.startSecond * 1000);
+        // Millisecond rounding can collapse a valid sub-ms cue to zero duration.
+        const endMs = Math.max(Math.round(cue.endSecond * 1000), startMs + 1);
+        return `${index + 1}\n${this.timestampFromMs(startMs)} --> ${this.timestampFromMs(endMs)}\n${this.escapeText(cue.text)}\n`;
       })
       .join("\n");
   }
@@ -75,8 +82,7 @@ export class CaptionEngine {
     }
   }
 
-  private timestamp(seconds: number): string {
-    const totalMilliseconds = Math.round(seconds * 1000);
+  private timestampFromMs(totalMilliseconds: number): string {
     const hours = Math.floor(totalMilliseconds / 3_600_000);
     const minutes = Math.floor((totalMilliseconds % 3_600_000) / 60_000);
     const wholeSeconds = Math.floor((totalMilliseconds % 60_000) / 1000);
@@ -89,11 +95,18 @@ export class CaptionEngine {
   }
 
   private escapeText(text: string): string {
-    return text.replace(/\r?\n/g, " ").trim();
+    // Strip libass override braces so burned-in cue text cannot inject styling tags.
+    return text.replace(/\r?\n/g, " ").replace(/[{}]/g, "").trim();
   }
 
   private escapeSubtitlePathForFilter(path: string): string {
-    const relativePath = relative(process.cwd(), path) || basename(path);
-    return relativePath.replace(/\\/g, "/").replace(/:/g, "\\:").replace(/'/g, "\\'");
+    // Absolute path (independent of process.cwd at exec time) with forward slashes, then
+    // filtergraph quoting: single quotes protect spaces/commas/semicolons/brackets from
+    // graph parsing, the drive colon is escaped for the filter's own option parser, and a
+    // literal single quote is escaped by closing and reopening the quoted section.
+    const normalized = resolve(path).replace(/\\/g, "/");
+    const colonEscaped = normalized.replace(/:/g, "\\:");
+    const quoteEscaped = colonEscaped.replace(/'/g, "'\\''");
+    return `'${quoteEscaped}'`;
   }
 }

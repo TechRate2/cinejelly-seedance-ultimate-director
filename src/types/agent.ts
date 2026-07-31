@@ -9,6 +9,7 @@ import type { GuardianReport } from "./guardian.js";
 import type { Prediction } from "./provider.js";
 import type { ScenePlan } from "../core/shot-planner.js";
 import type { AssembledDeliverable } from "./assembly.js";
+import type { SocialPublishingMetadata } from "../core/social-publishing-planner.js";
 import type { ProductionGraphSnapshot } from "./graph.js";
 import type { Storyboard } from "./storyboard.js";
 import type { CaptionCue, CaptionOptions } from "./caption.js";
@@ -53,11 +54,16 @@ export interface CineJellyProjectRequest {
 }
 
 export interface IntakeResult {
+  /** Deep-brief understanding from the Creative Brief Analyst (enhancer; absent = legacy behavior). */
+  readonly creativeIntent?: import("./creative-intent.js").CreativeIntent;
   readonly projectId: string;
   readonly userInput: string;
   readonly settings: FlexibleSeedanceSettings;
   readonly modelPreferences?: ModelPreferences;
   readonly references: readonly PromptReference[];
+  /** Vision descriptors of uploaded image references (palette/material/logo/appearance), so the
+   *  brief analyst decides style grounded in the REAL asset, not just its role+label. Fail-open. */
+  readonly referenceVisualDescriptors?: readonly { readonly label: string; readonly descriptor: string }[];
   readonly metadata?: Record<string, string>;
   readonly sourceVideoAnalysis?: SourceVideoDeconstruction;
 }
@@ -66,6 +72,14 @@ export interface StoryPlan {
   readonly premise: string;
   readonly targetDurationSeconds: number;
   readonly scenes: readonly ScenePlan[];
+  /** Per-character appearance sheets (label → concrete face/body description) for identity anchoring. */
+  readonly cast?: readonly { readonly label: string; readonly appearance: string }[];
+  /** Series mode (metadata.seriesId): 2-3 sentences of what happened, for the continuity store. */
+  readonly episodeSummary?: string;
+  /** Series mode: the exact visible state at the final frame — the next episode resumes from it. */
+  readonly episodeEndState?: string;
+  /** Series mode: the unresolved hook the next episode must pick up. */
+  readonly cliffhanger?: string;
 }
 
 export interface RenderCandidate {
@@ -88,8 +102,21 @@ export interface RenderedShot {
   readonly repairAttemptCount: number;
 }
 
+/** A character's locked identity portrait for this run — persisted so later episodes reuse the same face. */
+export interface DirectorCharacterAnchor {
+  readonly characterKey: string;
+  readonly label: string;
+  readonly uri: string;
+}
+
 export interface DirectorRunResult {
   readonly projectId: string;
+  /**
+   * Identity portraits actually bound to this run's shots (generated anchors for invented
+   * characters, or the customer's own uploads). Series persists these so episode 2+ reuses episode
+   * 1's face instead of inventing a new one each episode.
+   */
+  readonly characterAnchors: readonly DirectorCharacterAnchor[];
   readonly storyPlan: StoryPlan;
   readonly storyboard: Storyboard;
   readonly storyboardPreflight: GuardianReport;
@@ -113,4 +140,6 @@ export interface DirectorRunResult {
   readonly deliverable?: AssembledDeliverable;
   readonly deliveryGate?: DeliveryGateReport;
   readonly semanticVisualInspection?: SemanticVisualInspectionReport;
+  /** Platform-ready title/description/hashtags so the deliverable can be posted immediately. */
+  readonly socialPublishing?: SocialPublishingMetadata;
 }

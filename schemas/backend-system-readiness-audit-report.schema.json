@@ -1,0 +1,521 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/backend-system-readiness-audit-report.schema.json",
+  "title": "CineJelly Backend System Readiness Audit Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "checkedInputs",
+    "sourceConnectivity",
+    "validationCommandCoverage",
+    "reportContractCoverage",
+    "reportEvidence",
+    "areaSummaries",
+    "blockerSummary",
+    "externalEvidenceActionMatrix",
+    "externalEvidencePhasePlan",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.backend-system-readiness-audit.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "warning", "blocked_by_external_evidence", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outputPath",
+        "sourceRoot",
+        "scriptRoot",
+        "reportCount",
+        "reportContractCount",
+        "criticalModuleCount",
+        "auditedValidationCommandCount"
+      ],
+      "properties": {
+        "outputPath": { "type": "string", "minLength": 1 },
+        "sourceRoot": { "type": "string", "minLength": 1 },
+        "scriptRoot": { "type": "string", "minLength": 1 },
+        "reportCount": { "type": "integer", "minimum": 1 },
+        "reportContractCount": { "type": "integer", "minimum": 1 },
+        "criticalModuleCount": { "type": "integer", "minimum": 1 },
+        "auditedValidationCommandCount": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "sourceConnectivity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "connectivityPolicy",
+        "sourceFileCount",
+        "scriptFileCount",
+        "entrypoints",
+        "scriptReferencedSourceFiles",
+        "effectiveRootCount",
+        "reachableSourceFileCount",
+        "allSourceFilesReachable",
+        "disconnectedSourceFileCount",
+        "disconnectedSourceFilesSample",
+        "unresolvedRelativeImportCount",
+        "unresolvedRelativeImports",
+        "criticalModules",
+        "missingCriticalModules",
+        "disconnectedCriticalModules",
+        "zeroInboundCriticalModules"
+      ],
+      "properties": {
+        "status": { "enum": ["pass", "fail"] },
+        "connectivityPolicy": { "const": "all_source_files_reachable_from_backend_or_validation_roots" },
+        "sourceFileCount": { "type": "integer", "minimum": 0 },
+        "scriptFileCount": { "type": "integer", "minimum": 0 },
+        "entrypoints": { "type": "array", "items": { "type": "string" } },
+        "scriptReferencedSourceFiles": { "type": "array", "items": { "type": "string" } },
+        "effectiveRootCount": { "type": "integer", "minimum": 0 },
+        "reachableSourceFileCount": { "type": "integer", "minimum": 0 },
+        "allSourceFilesReachable": { "type": "boolean" },
+        "disconnectedSourceFileCount": { "type": "integer", "minimum": 0 },
+        "disconnectedSourceFilesSample": { "type": "array", "items": { "type": "string" } },
+        "unresolvedRelativeImportCount": { "type": "integer", "minimum": 0 },
+        "unresolvedRelativeImports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["file", "specifier"],
+            "properties": {
+              "file": { "type": "string" },
+              "specifier": { "type": "string" }
+            }
+          }
+        },
+        "criticalModules": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/criticalModule" }
+        },
+        "missingCriticalModules": { "type": "array", "items": { "type": "string" } },
+        "disconnectedCriticalModules": { "type": "array", "items": { "type": "string" } },
+        "zeroInboundCriticalModules": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "validationCommandCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "catalogPolicy",
+        "validationCommandCount",
+        "auditedCommandCount",
+        "coveredAuditedCommandCount",
+        "allValidationCommandsAudited",
+        "missingAuditedCommandCount",
+        "missingAuditedCommands",
+        "extraValidationCommandCount",
+        "extraValidationCommandsSample",
+        "auditedCommands"
+      ],
+      "properties": {
+        "status": { "enum": ["pass", "fail"] },
+        "catalogPolicy": { "const": "all_package_validation_commands_must_be_audited" },
+        "validationCommandCount": { "type": "integer", "minimum": 0 },
+        "auditedCommandCount": { "type": "integer", "minimum": 0 },
+        "coveredAuditedCommandCount": { "type": "integer", "minimum": 0 },
+        "allValidationCommandsAudited": { "type": "boolean" },
+        "missingAuditedCommandCount": { "type": "integer", "minimum": 0 },
+        "missingAuditedCommands": { "type": "array", "items": { "type": "string" } },
+        "extraValidationCommandCount": { "type": "integer", "minimum": 0 },
+        "extraValidationCommandsSample": { "type": "array", "items": { "type": "string" } },
+        "auditedCommands": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/auditedCommand" }
+        }
+      }
+    },
+    "reportContractCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "catalogPolicy",
+        "contractCount",
+        "readinessReportCount",
+        "allReportContractsCataloged",
+        "catalogedContractCount",
+        "uncatalogedContractCount",
+        "uncatalogedContractsSample",
+        "catalogedReportsWithoutContractCount",
+        "catalogedReportsWithoutContractSample"
+      ],
+      "properties": {
+        "status": { "enum": ["pass", "fail"] },
+        "catalogPolicy": { "const": "all_report_contracts_must_be_classified_in_readiness_catalog" },
+        "contractCount": { "type": "integer", "minimum": 0 },
+        "readinessReportCount": { "type": "integer", "minimum": 0 },
+        "allReportContractsCataloged": { "type": "boolean" },
+        "catalogedContractCount": { "type": "integer", "minimum": 0 },
+        "uncatalogedContractCount": { "type": "integer", "minimum": 0 },
+        "uncatalogedContractsSample": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/reportContractCoverageItem" }
+        },
+        "catalogedReportsWithoutContractCount": { "type": "integer", "minimum": 0 },
+        "catalogedReportsWithoutContractSample": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/readinessReportCoverageItem" }
+        }
+      }
+    },
+    "reportEvidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/reportEvidence" }
+    },
+    "areaSummaries": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/areaSummary" }
+    },
+    "blockerSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "codeIssueCount",
+        "externalEvidenceBlockerCount",
+        "warningCount",
+        "codeIssues",
+        "externalEvidenceBlockers",
+        "warnings"
+      ],
+      "properties": {
+        "codeIssueCount": { "type": "integer", "minimum": 0 },
+        "externalEvidenceBlockerCount": { "type": "integer", "minimum": 0 },
+        "warningCount": { "type": "integer", "minimum": 0 },
+        "codeIssues": { "type": "array", "items": { "$ref": "#/$defs/blocker" } },
+        "externalEvidenceBlockers": { "type": "array", "items": { "$ref": "#/$defs/blocker" } },
+        "warnings": { "type": "array", "items": { "$ref": "#/$defs/blocker" } }
+      }
+    },
+    "externalEvidenceActionMatrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "matrixPolicy",
+        "blockerCount",
+        "actionCount",
+        "areaCount",
+        "evidenceKindCounts",
+        "areaActionSummaries",
+        "actions"
+      ],
+      "properties": {
+        "status": { "enum": ["pass", "blocked"] },
+        "matrixPolicy": { "const": "external_blockers_must_have_actionable_validation_command_and_evidence_kind" },
+        "blockerCount": { "type": "integer", "minimum": 0 },
+        "actionCount": { "type": "integer", "minimum": 0 },
+        "areaCount": { "type": "integer", "minimum": 0 },
+        "evidenceKindCounts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/externalEvidenceKindCount" }
+        },
+        "areaActionSummaries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/externalEvidenceAreaActionSummary" }
+        },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/externalEvidenceAction" }
+        }
+      }
+    },
+    "externalEvidencePhasePlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "phasePolicy",
+        "phaseCount",
+        "blockerCount",
+        "phases"
+      ],
+      "properties": {
+        "status": { "enum": ["pass", "blocked"] },
+        "phasePolicy": { "const": "external_evidence_is_grouped_by_operator_execution_order" },
+        "phaseCount": { "type": "integer", "minimum": 0 },
+        "blockerCount": { "type": "integer", "minimum": 0 },
+        "phases": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/externalEvidencePhase" }
+        }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "backendCodeEvidencePass",
+        "externalEvidenceComplete",
+        "canClaimBackendNoSpendPlanningReady",
+        "canClaimCommercialTrafficReady",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "backendCodeEvidencePass": { "type": "boolean" },
+        "externalEvidenceComplete": { "type": "boolean" },
+        "canClaimBackendNoSpendPlanningReady": { "type": "boolean" },
+        "canClaimCommercialTrafficReady": { "type": "boolean" },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "criticalModule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "present", "reachableFromBackendEntrypoint", "directImportCount"],
+      "properties": {
+        "path": { "type": "string" },
+        "present": { "type": "boolean" },
+        "reachableFromBackendEntrypoint": { "type": "boolean" },
+        "directImportCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "reportContractCoverageItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "path"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 }
+      }
+    },
+    "readinessReportCoverageItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 }
+      }
+    },
+    "reportEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "area",
+        "gateKind",
+        "path",
+        "expectedStatus",
+        "externalEvidence",
+        "present",
+        "rawStatus",
+        "status"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "area": { "type": "string", "minLength": 1 },
+        "gateKind": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "expectedStatus": { "type": "string", "minLength": 1 },
+        "externalEvidence": { "type": "boolean" },
+        "present": { "type": "boolean" },
+        "schemaVersion": { "type": "string" },
+        "rawStatus": { "type": "string" },
+        "status": {
+          "enum": [
+            "pass",
+            "warning",
+            "external_blocked",
+            "external_missing",
+            "missing_report",
+            "code_or_contract_issue"
+          ]
+        },
+        "noSpend": { "type": "boolean" },
+        "networkCallsMade": { "type": "boolean" },
+        "providerCallsMade": { "type": "boolean" },
+        "checkCount": { "type": "integer", "minimum": 0 },
+        "issue": { "type": "string" },
+        "releaseBlocker": { "type": "string" },
+        "nextActionCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "auditedCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "present"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "present": { "type": "boolean" },
+        "command": { "type": "string", "minLength": 1 }
+      }
+    },
+    "areaSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "area",
+        "reportCount",
+        "passCount",
+        "externalBlockedCount",
+        "missingReportCount",
+        "codeIssueCount",
+        "warningCount"
+      ],
+      "properties": {
+        "area": { "type": "string", "minLength": 1 },
+        "reportCount": { "type": "integer", "minimum": 0 },
+        "passCount": { "type": "integer", "minimum": 0 },
+        "externalBlockedCount": { "type": "integer", "minimum": 0 },
+        "missingReportCount": { "type": "integer", "minimum": 0 },
+        "codeIssueCount": { "type": "integer", "minimum": 0 },
+        "warningCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "externalEvidenceKindCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "count"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "externalEvidenceAreaActionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "area",
+        "blockerCount",
+        "validationCommandCount",
+        "missingReportCount",
+        "paidOrNetworkRequiredCount",
+        "operatorInputRequiredCount",
+        "manualReviewRequiredCount"
+      ],
+      "properties": {
+        "area": { "type": "string", "minLength": 1 },
+        "blockerCount": { "type": "integer", "minimum": 0 },
+        "validationCommandCount": { "type": "integer", "minimum": 0 },
+        "missingReportCount": { "type": "integer", "minimum": 0 },
+        "paidOrNetworkRequiredCount": { "type": "integer", "minimum": 0 },
+        "operatorInputRequiredCount": { "type": "integer", "minimum": 0 },
+        "manualReviewRequiredCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "externalEvidenceAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "area",
+        "gateKind",
+        "status",
+        "rawStatus",
+        "reportPath",
+        "issue",
+        "requiredEvidenceKind",
+        "validationCommand",
+        "validationCommandPresent",
+        "requiresOperatorInput",
+        "requiresPaidProviderOrNetwork",
+        "requiresManualReview",
+        "recommendedOrder"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "area": { "type": "string", "minLength": 1 },
+        "gateKind": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["external_blocked", "external_missing"] },
+        "rawStatus": { "type": "string" },
+        "reportPath": { "type": "string", "minLength": 1 },
+        "issue": { "type": "string", "minLength": 1 },
+        "requiredEvidenceKind": { "type": "string", "minLength": 1 },
+        "validationCommand": { "type": "string", "minLength": 1 },
+        "validationCommandPresent": { "type": "boolean" },
+        "validationCommandScript": { "type": "string", "minLength": 1 },
+        "requiresOperatorInput": { "type": "boolean" },
+        "requiresPaidProviderOrNetwork": { "type": "boolean" },
+        "requiresManualReview": { "type": "boolean" },
+        "recommendedOrder": { "type": "number", "minimum": 0 }
+      }
+    },
+    "externalEvidencePhase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase",
+        "label",
+        "purpose",
+        "status",
+        "requiredEvidenceKinds",
+        "blockerCount",
+        "actionIds",
+        "validationCommands",
+        "reportPaths",
+        "requiresOperatorInput",
+        "requiresPaidProviderOrNetwork",
+        "requiresManualReview",
+        "readyWhen"
+      ],
+      "properties": {
+        "phase": { "type": "integer", "minimum": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "purpose": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "blocked"] },
+        "requiredEvidenceKinds": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "blockerCount": { "type": "integer", "minimum": 0 },
+        "actionIds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "validationCommands": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "reportPaths": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "requiresOperatorInput": { "type": "boolean" },
+        "requiresPaidProviderOrNetwork": { "type": "boolean" },
+        "requiresManualReview": { "type": "boolean" },
+        "readyWhen": { "type": "string", "minLength": 1 }
+      }
+    },
+    "blocker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "area", "owner", "status", "rawStatus", "reportPath", "issue"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "area": { "type": "string", "minLength": 1 },
+        "owner": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "minLength": 1 },
+        "rawStatus": { "type": "string" },
+        "reportPath": { "type": "string", "minLength": 1 },
+        "issue": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

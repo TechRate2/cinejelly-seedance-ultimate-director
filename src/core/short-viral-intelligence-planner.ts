@@ -34,14 +34,17 @@ import { hasCopyRiskIntent } from "../utils/copy-risk-intent.js";
 import { createStableId } from "../utils/ids.js";
 import { AudienceNicheIntelligencePlanner } from "./audience-niche-intelligence.js";
 import { ShortCreativePatternLearningEngine } from "./short-creative-pattern-learning.js";
+import { SHORT_PLATFORM_TEMPLATE_CORPUS_ORIGINS } from "./short-platform-template-corpus.js";
+import { SHORT_PROMPT_CORPUS_ORIGINS } from "./short-prompt-pattern-corpus.js";
+import {
+  internalSourcePatternOrigins,
+  SHORT_CORE_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
 const SOURCE_PATTERN_ORIGINS = [
-  "calesthio/OpenMontage",
-  "HKUDS/ViMax",
-  "HKUDS/VideoAgent",
-  "video-db/Director",
-  "vericontext/vibeframe",
-  "YouMind-OpenLab/awesome-seedance-2-prompts"
+  ...internalSourcePatternOrigins(SHORT_CORE_SOURCE_PATTERN_IDS),
+  ...SHORT_PROMPT_CORPUS_ORIGINS,
+  ...SHORT_PLATFORM_TEMPLATE_CORPUS_ORIGINS
 ] as const;
 
 const UNSAFE_SOURCE_PATTERN =
@@ -380,7 +383,7 @@ export class ShortViralIntelligencePlanner {
     reference: ShortReferenceVideoPattern | undefined,
     creativePatternLearning: ShortCreativePatternLearningPlan
   ): readonly ShortViralSceneDirective[] {
-    const baseDuration = input.intent.targetDurationSeconds / Math.max(1, scenes.length);
+    const recommendedDurations = sceneDirectiveDurationsFor(scenes, input.intent.targetDurationSeconds);
     const selectedIdea = selectedCreativeIdea(creativePatternLearning);
     return scenes.map((scene, index) => {
       const roleLevers = leversForScene(scene.role, strategy.viralLevers);
@@ -390,7 +393,7 @@ export class ShortViralIntelligencePlanner {
         sceneId: scene.sceneId,
         order: scene.order,
         role: scene.role,
-        recommendedDurationSeconds: round(isFirst ? Math.min(3, Math.max(1.5, baseDuration * 0.45)) : isLast ? Math.max(2, baseDuration * 0.65) : baseDuration),
+        recommendedDurationSeconds: recommendedDurations[index] ?? round(input.intent.targetDurationSeconds / Math.max(1, scenes.length)),
         firstFrameRule: isFirst
           ? `Open with ${firstFrameSubject(input.productBrief, strategy)} and one visible promise before the first second ends, with no on-screen text.${selectedIdea ? ` Selected idea hook: ${selectedIdea.hook}` : ""}`
           : "Continue with a visible state change, not a static talking-head hold.",
@@ -467,6 +470,12 @@ function creativeModeFrom(
   format: AudienceNicheFormat
 ): ShortViralCreativeMode {
   const combined = `${prompt} ${template?.category ?? ""}`.toLowerCase();
+  // EXPLICIT style choice (customer "Phong cách" select appends a machine tag): absolute priority
+  // over every keyword heuristic below — a review-worded brief with [style:cinematic] IS cinematic.
+  const explicit = /\[style:(ugc|cinematic|story|demo|education|testimonial|comparison|problem_solution|product_ad)\]/.exec(combined);
+  if (explicit) {
+    return explicit[1] === "ugc" ? "ugc_review" : (explicit[1] as ShortViralCreativeMode);
+  }
   if (/\bugc|review|creator|influencer|native\b/.test(combined)) return "ugc_review";
   if (/testimonial|customer story/.test(combined)) return "testimonial";
   if (/compare|versus|vs|before after|before\/after/.test(combined)) return "comparison";
@@ -594,6 +603,37 @@ function scoreBrandFit(concept: ShortPipelineConcept, brandKitEvaluation: BrandK
   let score = brandKitEvaluation.status === "ready" ? 0.84 : 0.66;
   if (brandKitEvaluation.tone && concept.angle.toLowerCase().includes(brandKitEvaluation.tone.toLowerCase().split(" ")[0] ?? "")) score += 0.06;
   return clampScore(score);
+}
+
+function sceneDirectiveDurationsFor(
+  scenes: readonly ShortPipelineScenePlan[],
+  targetDurationSeconds: number
+): readonly number[] {
+  if (scenes.length === 0) {
+    return [];
+  }
+  const weights = scenes.map((scene) => {
+    switch (scene.role) {
+      case "hook": return 0.72;
+      case "problem": return 1;
+      case "proof": return 1.15;
+      case "demo": return 1.24;
+      case "offer": return 0.82;
+      case "payoff": return 0.92;
+    }
+  });
+  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+  const minimum = targetDurationSeconds <= 15 ? 2.5 : 3;
+  const raw = weights.map((weight) => Math.max(minimum, targetDurationSeconds * (weight / totalWeight)));
+  const rawTotal = raw.reduce((sum, value) => sum + value, 0);
+  const rounded = raw.map((value) => round(value * (targetDurationSeconds / rawTotal)));
+  const delta = round(targetDurationSeconds - rounded.reduce((sum, value) => sum + value, 0));
+  const lastIndex = rounded.length - 1;
+  if (lastIndex >= 0 && Math.abs(delta) >= 0.01) {
+    const lastValue = rounded[lastIndex] ?? minimum;
+    rounded[lastIndex] = round(Math.max(minimum, lastValue + delta));
+  }
+  return rounded;
 }
 
 function scoreClaimSafety(concept: ShortPipelineConcept, productBrief: ProductUrlBrief | undefined, prompt: string): number {

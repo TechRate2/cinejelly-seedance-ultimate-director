@@ -124,6 +124,6 @@ Local validation on 2026-06-14:
 Additional local validation on 2026-06-19:
 
 - `node ./node_modules/typescript/bin/tsc -p tsconfig.json` passed.
-- `node scripts/run-generated-audio-polling-resilience-smoke.mjs` passed with 13/13 checks and no network/provider calls.
+- `node tests/run-generated-audio-polling-resilience-smoke.mjs` passed with 13/13 checks and no network/provider calls.
 - `node scripts/validate-report-contracts.mjs --only-contract generated_audio_polling_resilience:schemas/generated-audio-polling-resilience-smoke-report.schema.json=assets/output_deliverables/business-readiness/generated-audio-polling-resilience-smoke-report.json --no-output` passed.
 - Paid Atlas validation with voice `eve` on 2026-06-19 produced a provider-success result, approved output-batch evidence, and a succeeded `audio.generate` ledger entry; manual listening review remains required before business readiness can count it.

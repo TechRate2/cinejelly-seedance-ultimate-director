@@ -1,9 +1,10 @@
 /**
  * Validates provider-generated audio results before they can become mix tracks.
- * Inspired by MoneyPrinterTurbo audio-stage artifacts and VibeFrame validation-before-release discipline.
+ * Inspired by audio-stage artifacts and validation-before-release discipline.
  */
 
 import type { AudioMixTrack, AudioTrackRole, GeneratedAudioIntent, GeneratedAudioIntentKind } from "../types/audio.js";
+import { MAX_NATURAL_TEMPO } from "./dub-duration-fit.js";
 import type { GeneratedAudioExecutionReadyItem } from "../types/generated-audio-execution.js";
 import type { GeneratedAudioAssetResolutionReport } from "../types/generated-audio-asset.js";
 import type {
@@ -49,13 +50,13 @@ export class GeneratedAudioOutputValidator {
   public validate(input: GeneratedAudioOutputValidatorInput): GeneratedAudioOutputValidationReport {
     const issues: GeneratedAudioOutputValidationIssue[] = [];
     this.validateIdentity(input, issues);
-    this.validateDuration(input, issues);
+    const fitTempo = this.validateDuration(input, issues);
     const outputUrl = input.result.outputUrl;
     const outputDecision = this.validateOutputUrl(outputUrl, input, issues);
     const volume = this.volume(input.intent.volume, issues);
     const status = this.status(issues);
     const audioTrack = status === "approved" && outputDecision.trackUrl && outputDecision.approvedForTrack
-      ? this.audioTrack(input.intent, outputDecision.trackUrl, volume)
+      ? this.audioTrack(input.intent, outputDecision.trackUrl, volume, fitTempo)
       : undefined;
 
     return {
@@ -71,6 +72,15 @@ export class GeneratedAudioOutputValidator {
       ...(outputDecision.assetResolution ? { assetResolution: outputDecision.assetResolution } : {}),
       issueCount: issues.length,
       issues,
+      ...(fitTempo !== undefined && input.plannedItem.request.settings.durationSeconds !== undefined
+        ? {
+            tempoFit: {
+              ratio: fitTempo,
+              measuredSeconds: input.result.durationSeconds as number,
+              plannedSeconds: input.plannedItem.request.settings.durationSeconds
+            }
+          }
+        : {}),
       ...(audioTrack ? { audioTrack } : {})
     };
   }
@@ -121,10 +131,11 @@ export class GeneratedAudioOutputValidator {
     }
   }
 
+  /** Returns an atempo ratio when the overrun is fittable (MPT-invariant completion); undefined = unchanged. */
   private validateDuration(
     input: GeneratedAudioOutputValidatorInput,
     issues: GeneratedAudioOutputValidationIssue[]
-  ): void {
+  ): number | undefined {
     const duration = input.result.durationSeconds;
     if (duration === undefined) {
       issues.push(this.issue(
@@ -133,7 +144,7 @@ export class GeneratedAudioOutputValidator {
         "Generated-audio result is missing duration evidence.",
         "Inspect the generated audio and record a positive duration before mixing."
       ));
-      return;
+      return undefined;
     }
     if (!Number.isFinite(duration) || duration <= 0) {
       issues.push(this.issue(
@@ -142,17 +153,29 @@ export class GeneratedAudioOutputValidator {
         "Generated-audio result duration must be greater than zero seconds.",
         "Discard the result or inspect the generated audio before mixing."
       ));
-      return;
+      return undefined;
     }
     const plannedDuration = input.plannedItem.request.settings.durationSeconds;
-    if (plannedDuration !== undefined && duration > plannedDuration + DURATION_TOLERANCE_SECONDS) {
+    if (plannedDuration !== undefined && plannedDuration > 0 && duration > plannedDuration + DURATION_TOLERANCE_SECONDS) {
+      // Fittable overrun (repo-fidelity: MoneyPrinterTurbo ACCOMMODATES long narration; we used to
+      // hard-reject it). Within the natural speech cap the track is tempo-fitted at mix time (the
+      // engine's atempo, same mechanism as dubbing duration-fit) and passes with a WARN. Only an
+      // overrun beyond the cap — audibly chipmunked speech — still blocks.
+      const neededTempo = duration / plannedDuration;
+      if (neededTempo <= MAX_NATURAL_TEMPO) {
+        // NOT an issue: the fit IS the accommodation (a warn would flip the whole result to
+        // review_required and suppress the track — defeating the point). Transparency lives in the
+        // report's tempoFit field instead.
+        return Math.round(neededTempo * 1000) / 1000;
+      }
       issues.push(this.issue(
         "duration_exceeds_plan",
         "block",
-        "Generated-audio result duration exceeds the planned duration tolerance.",
+        `Generated-audio result duration exceeds the planned duration beyond the natural tempo-fit cap (${MAX_NATURAL_TEMPO}x).`,
         "Regenerate shorter audio or revise the generated-audio execution plan before mixing."
       ));
     }
+    return undefined;
   }
 
   private validateOutputUrl(
@@ -323,12 +346,20 @@ export class GeneratedAudioOutputValidator {
     return volume;
   }
 
-  private audioTrack(intent: GeneratedAudioIntent, outputUrl: string, volume: number): AudioMixTrack {
+  private audioTrack(intent: GeneratedAudioIntent, outputUrl: string, volume: number, tempo?: number): AudioMixTrack {
     return {
       trackId: createStableId("generated_audio_track", intent.intentId),
       sourceUrlOrPath: outputUrl,
       role: this.roleForKind(intent.kind),
-      volume
+      volume,
+      // Carry the cue's planned start so the mix places it at that moment (adelay), instead of every
+      // narration segment / SFX / ambience cue stacking at 0:00 and overlapping (final-audit gap V7).
+      ...(Number.isFinite(intent.startSecond) && (intent.startSecond as number) > 0
+        ? { startSeconds: intent.startSecond as number }
+        : {}),
+      // Tempo-fit for fittable overruns (duration_tempo_fitted): the mix engine's atempo compresses
+      // the content into its planned window instead of the old hard rejection.
+      ...(tempo !== undefined && tempo > 1 ? { tempo } : {})
     };
   }
 

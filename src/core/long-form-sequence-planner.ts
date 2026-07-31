@@ -5,6 +5,7 @@
 
 import type { StoryPlan } from "../types/agent.js";
 import { createStableId } from "../utils/ids.js";
+import { segmentScenesSemantic } from "./semantic-sequence-segmenter.js";
 import type { ScenePlan } from "./shot-planner.js";
 
 export interface LongFormSequenceGroup {
@@ -13,6 +14,8 @@ export interface LongFormSequenceGroup {
   readonly purpose: string;
   readonly targetDurationSeconds: number;
   readonly order: number;
+  /** How this sequence's boundary was chosen (narrative-aware vs even fallback). */
+  readonly boundaryReason: string;
   readonly scenes: readonly ScenePlan[];
 }
 
@@ -24,19 +27,20 @@ export class LongFormSequencePlanner {
     if (input.storyPlan.scenes.length === 0) {
       return [];
     }
-    const targetSequenceCount = Math.min(
-      input.storyPlan.scenes.length,
-      Math.max(1, Math.ceil(input.storyPlan.targetDurationSeconds / 45))
-    );
+    // Narrative-aware segmentation (ViMax essence): group scenes at story boundaries inside
+    // a target duration band instead of arbitrary fixed-time slices.
+    const boundaries = segmentScenesSemantic({
+      scenes: input.storyPlan.scenes,
+      targetSequenceSeconds: 45
+    });
     const groups: LongFormSequenceGroup[] = [];
-    let sceneCursor = 0;
 
-    for (let sequenceIndex = 0; sequenceIndex < targetSequenceCount; sequenceIndex += 1) {
-      const remainingScenes = input.storyPlan.scenes.length - sceneCursor;
-      const remainingSequences = targetSequenceCount - sequenceIndex;
-      const scenesInGroup = Math.max(1, Math.ceil(remainingScenes / remainingSequences));
-      const scenes = input.storyPlan.scenes.slice(sceneCursor, sceneCursor + scenesInGroup);
-      sceneCursor += scenes.length;
+    for (let sequenceIndex = 0; sequenceIndex < boundaries.length; sequenceIndex += 1) {
+      const boundary = boundaries[sequenceIndex];
+      if (!boundary) {
+        continue;
+      }
+      const scenes = input.storyPlan.scenes.slice(boundary.startSceneIndex, boundary.startSceneIndex + boundary.sceneCount);
       const firstScene = scenes[0];
       const lastScene = scenes[scenes.length - 1];
       const targetDurationSeconds = scenes.reduce(
@@ -49,9 +53,10 @@ export class LongFormSequencePlanner {
         title: firstScene && lastScene && firstScene.sceneId !== lastScene.sceneId
           ? `${firstScene.title} to ${lastScene.title}`
           : firstScene?.title ?? `Sequence ${sequenceIndex + 1}`,
-        purpose: this.sequencePurpose(sequenceIndex, targetSequenceCount),
+        purpose: this.sequencePurpose(sequenceIndex, boundaries.length),
         targetDurationSeconds,
         order: sequenceIndex,
+        boundaryReason: boundary.boundaryReason,
         scenes
       });
     }

@@ -41,10 +41,17 @@ const ROLE_SCOPE: Record<ReferenceRole, string> = {
   audio_tempo: "guide audio rhythm only",
   voice: "guide voice character only",
   style: "guide visual style after continuity-critical references",
-  source_video_structure: "guide planning and shot structure, not default provider input"
+  source_video_structure: "guide planning and shot structure; provider input only when explicitly authorized and capability-supported"
 };
 
 const DEFAULT_MAX_PROVIDER_REFERENCES = 8;
+const DEFAULT_MAX_PROVIDER_REFERENCES_BY_FAMILY: Record<ProviderReferenceFamily, number> = {
+  image: 9,
+  video: 3,
+  audio: 3
+};
+
+type ProviderReferenceFamily = "image" | "video" | "audio";
 
 const COMPRESSION_NOTES: readonly PromptCompressionNote[] = [
   { order: 1, section: "references", reason: "bind continuity-critical assets before prose" },
@@ -79,6 +86,11 @@ export function buildPromptBindingPlan(input: PromptBindingPlanInput): PromptBin
   const conflicts: PromptBindingConflict[] = [];
   const roleScopes: PromptBindingRoleScope[] = [];
   const providerReferences: ProviderReference[] = [];
+  const providerReferenceFamilyCounts: Record<ProviderReferenceFamily, number> = {
+    image: 0,
+    video: 0,
+    audio: 0
+  };
   const seenExactReferences = new Set<string>();
 
   for (const reference of sortedReferences) {
@@ -93,14 +105,17 @@ export function buildPromptBindingPlan(input: PromptBindingPlanInput): PromptBin
       duplicate,
       supportedKinds,
       maxProviderReferences,
-      currentProviderReferenceCount: providerReferences.length
+      currentProviderReferenceCount: providerReferences.length,
+      currentProviderReferenceFamilyCount: providerReferenceFamilyCounts[providerReferenceFamily(inputReferenceProvider(reference))]
     });
 
     conflicts.push(...decision.conflicts);
     roleScopes.push(roleScopeForReference(reference, decision.include, decision.providerFilterReason));
 
     if (decision.include) {
-      providerReferences.push(toProviderReference(reference));
+      const providerReference = toProviderReference(reference);
+      providerReferences.push(providerReference);
+      providerReferenceFamilyCounts[providerReferenceFamily(providerReference)] += 1;
     }
   }
 
@@ -149,6 +164,7 @@ function providerDecision(input: {
   readonly supportedKinds: ReadonlySet<ReferenceKind> | undefined;
   readonly maxProviderReferences: number;
   readonly currentProviderReferenceCount: number;
+  readonly currentProviderReferenceFamilyCount: number;
 }): {
   readonly include: boolean;
   readonly providerFilterReason?: string;
@@ -173,19 +189,23 @@ function providerDecision(input: {
     };
   }
 
-  if (input.reference.role === "source_video_structure") {
+  if (input.reference.role === "source_video_structure" && (input.reference.selection?.authorized !== true || !input.supportedKinds)) {
     conflicts.push(
       conflict({
         status: "info",
         code: "source_video_structure_planning_only",
         reference: input.reference,
-        message: "Source-video structure is retained for planning/prose but not sent as provider input by default.",
-        repair: "Only enable provider submission when the selected provider explicitly supports this role."
+        message: input.reference.selection?.authorized === true
+          ? "Source-video structure is retained for planning/prose because selected-provider reference capabilities were not supplied."
+          : "Source-video structure is retained for planning/prose but not sent as provider input until source rights are explicitly authorized.",
+        repair: "Enable provider submission only after source rights review and selected-provider video reference capability are both present."
       })
     );
     return {
       include: false,
-      providerFilterReason: "planning-only reference role",
+      providerFilterReason: input.reference.selection?.authorized === true
+        ? "provider capability evidence missing for source-video reference"
+        : "source-video reference is not explicitly authorized for provider handoff",
       conflicts
     };
   }
@@ -224,10 +244,53 @@ function providerDecision(input: {
     };
   }
 
+  const referenceFamily = providerReferenceFamily(inputReferenceProvider(input.reference));
+  const familyLimit = DEFAULT_MAX_PROVIDER_REFERENCES_BY_FAMILY[referenceFamily];
+  if (input.currentProviderReferenceFamilyCount >= familyLimit) {
+    conflicts.push(
+      conflict({
+        status: input.reference.priority === "primary" ? "repair" : "warn",
+        code: "provider_reference_family_limit_exceeded",
+        reference: input.reference,
+        message: `Reference was retained in prompt planning but not submitted to the provider because Atlas ${referenceFamily} reference inputs are capped at ${familyLimit}.`,
+        repair: `Reduce ${referenceFamily} references or promote only the minimum identity/product/endpoint/source anchors that must reach the provider.`
+      })
+    );
+    return {
+      include: false,
+      providerFilterReason: `provider ${referenceFamily} reference limit ${familyLimit} reached`,
+      conflicts
+    };
+  }
+
   return {
     include: true,
     conflicts
   };
+}
+
+function inputReferenceProvider(reference: PromptReference): ProviderReference {
+  return {
+    ...reference.providerReference,
+    role: reference.role
+  };
+}
+
+function providerReferenceFamily(reference: Pick<ProviderReference, "kind" | "role">): ProviderReferenceFamily {
+  if (reference.kind === "audio" || reference.role === "audio_tempo" || reference.role === "voice") {
+    return "audio";
+  }
+  if (
+    reference.kind === "video" ||
+    reference.kind === "motion" ||
+    reference.kind === "camera" ||
+    reference.role === "source_video_structure" ||
+    reference.role === "motion" ||
+    reference.role === "camera"
+  ) {
+    return "video";
+  }
+  return "image";
 }
 
 function isProviderSupportedReference(

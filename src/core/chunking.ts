@@ -6,7 +6,8 @@
 import type { QualityMode } from "../types/settings.js";
 
 const MIN_CLIP_SECONDS = 4;
-const MAX_CLIP_SECONDS = 15;
+/** Provider hard ceiling for ONE rendered clip — exported so planners can refuse "single clip" requests that physically cannot fit one clip. */
+export const MAX_CLIP_SECONDS = 15;
 
 export interface ChunkingInput {
   readonly totalDurationSeconds: number;

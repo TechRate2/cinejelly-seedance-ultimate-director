@@ -39,12 +39,17 @@
         "outputPath",
         "styleStorePath",
         "sessionStorePath",
+        "derivedDefaultStyleStorePath",
+        "derivedDefaultSessionStorePath",
         "endpointPaths",
         "createPageStatusCode",
         "unauthorizedSessionsStatusCode",
         "profileId",
         "sessionId",
         "createPageEndpointCheckPassed",
+        "htmlSecurityHeadersCheckPassed",
+        "invalidRequestIdStatusCode",
+        "videoPipeCatalogStatusCode",
         "clientIsolationCheckPassed",
         "secretLeakCheckPassed"
       ],
@@ -52,16 +57,21 @@
         "outputPath": { "type": "string" },
         "styleStorePath": { "type": "string" },
         "sessionStorePath": { "type": "string" },
+        "derivedDefaultStyleStorePath": { "type": "string", "pattern": "short-channel-styles\\.json$" },
+        "derivedDefaultSessionStorePath": { "type": "string", "pattern": "short-pipeline-sessions\\.json$" },
         "endpointPaths": {
           "type": "array",
           "minItems": 6,
           "items": { "type": "string" }
         },
         "createPageStatusCode": { "const": 200 },
+        "videoPipeCatalogStatusCode": { "const": 200 },
         "unauthorizedSessionsStatusCode": { "const": 401 },
+        "invalidRequestIdStatusCode": { "const": 400 },
         "profileId": { "type": "string", "pattern": "^short_channel_style_[a-f0-9]{16}$" },
         "sessionId": { "type": "string", "pattern": "^short_session_[a-f0-9]{16}$" },
         "createPageEndpointCheckPassed": { "const": true },
+        "htmlSecurityHeadersCheckPassed": { "const": true },
         "clientIsolationCheckPassed": { "const": true },
         "secretLeakCheckPassed": { "const": true }
       }
@@ -69,8 +79,94 @@
     "scenarios": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["savedStyle", "uiContract", "sessionUiContract"],
+      "required": ["videoPipeCatalog", "savedStyle", "uiContract", "remakeUiContract", "visualBibleUiContract", "productionBibleUiContract", "sessionUiContract"],
       "properties": {
+        "videoPipeCatalog": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "pipeCount",
+            "pipeModes",
+            "defaultResolution",
+            "defaultAudioMode",
+            "defaultReturnLastFrame",
+            "pipeNavigationGroups",
+            "pipeNavigationOrders",
+            "pipeCapabilityPolicyPresent",
+            "pipeSettingMetadataPresent",
+            "backendAutoRouteProviderMode",
+            "userCannotPickRawProviderModel",
+            "productionBibleMaxSeconds",
+            "productionBibleSupportsLongSequence",
+            "productionBibleDurationClass",
+            "productionBibleResolutionOptions",
+            "videoRemakeDefaultMode",
+            "videoRemakeSupportsSourceVideoLearning",
+            "videoRemakeVisualBibleMode",
+            "requestSafeVisualBibleModeSettings",
+            "canSubmitToProviderNow"
+          ],
+          "properties": {
+            "pipeCount": { "const": 5 },
+            "pipeModes": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "prefixItems": [
+                { "const": "smart_short" },
+                { "const": "product_kol_ugc" },
+                { "const": "storyboard_multishot" },
+                { "const": "video_remake" },
+                { "const": "production_bible" }
+              ]
+            },
+            "defaultResolution": { "const": "720p" },
+            "defaultAudioMode": { "const": "hybrid" },
+            "defaultReturnLastFrame": { "const": true },
+            "pipeNavigationGroups": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "prefixItems": [
+                { "const": "short" },
+                { "const": "short" },
+                { "const": "short" },
+                { "const": "remake" },
+                { "const": "production" }
+              ]
+            },
+            "pipeNavigationOrders": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "prefixItems": [
+                { "const": 1 },
+                { "const": 2 },
+                { "const": 3 },
+                { "const": 4 },
+                { "const": 5 }
+              ]
+            },
+            "pipeCapabilityPolicyPresent": { "const": true },
+            "pipeSettingMetadataPresent": { "const": true },
+            "backendAutoRouteProviderMode": { "const": true },
+            "userCannotPickRawProviderModel": { "const": true },
+            "productionBibleMaxSeconds": { "const": 480 },
+            "productionBibleSupportsLongSequence": { "const": true },
+            "productionBibleDurationClass": { "const": "production_sequence" },
+            "productionBibleResolutionOptions": {
+              "type": "array",
+              "minItems": 5,
+              "contains": { "const": "1440p-SR" },
+              "items": { "$ref": "#/$defs/seedanceResolution" }
+            },
+            "videoRemakeDefaultMode": { "const": "reference_to_video" },
+            "videoRemakeSupportsSourceVideoLearning": { "const": true },
+            "videoRemakeVisualBibleMode": { "const": "auto" },
+            "requestSafeVisualBibleModeSettings": { "const": true },
+            "canSubmitToProviderNow": { "const": false }
+          }
+        },
         "savedStyle": {
           "type": "object",
           "additionalProperties": false,
@@ -93,8 +189,27 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "targetSeconds",
+            "commercialMaxSeconds",
+            "selectedPipeMaxSeconds",
+            "selectedPipeSupportsLongSequence",
+            "withinSelectedPipeDurationRange",
             "recommendedWorkflowMode",
             "workflowControlCount",
+            "workflowControlModes",
+            "pipeSelectionMode",
+            "pipeSelectionBackendPipe",
+            "pipeSelectionReasonCodeCount",
+            "pipeSelectionVisualBibleAlignmentStatus",
+            "pipeNavigationCount",
+            "pipeNavigationModes",
+            "pipeNavigationGroups",
+            "pipeCapabilityPolicyPresent",
+            "pipeBackendAutoRouteProviderMode",
+            "pipeUserCannotPickRawProviderModel",
+            "recommendedPipeNavigationMode",
+            "productionBibleSupportsLongSequence",
+            "videoRemakeWorkflowControlPresent",
             "directorPlanIdPresent",
             "directorStatus",
             "directorCreativeMode",
@@ -110,6 +225,24 @@
             "creativePatternCandidateCount",
             "creativePatternTopCandidateCount",
             "selectedCreativeIdeaPresent",
+            "mediaReferenceCount",
+            "mediaReferenceProviderHandoffCount",
+            "mediaReferencePromptTags",
+            "seedanceRecommendedProviderMode",
+            "seedancePreferredTier",
+            "seedanceResolution",
+            "seedanceReturnLastFrame",
+            "seedancePromptRecipeName",
+            "seedanceReferenceTagCount",
+            "visualBibleStatus",
+            "visualBibleMode",
+            "visualBibleRecommendedPipe",
+            "visualBibleDurationBand",
+            "visualBibleAssetPlanCount",
+            "visualBibleRequiredAssetPlanCount",
+            "visualBibleBoardCount",
+            "visualBibleTargetClipCount",
+            "visualBibleBlocksRender",
             "reviewCheckpointCount",
             "reviewCheckpointSurfaceCount",
             "approvalPayloadContractGate",
@@ -121,8 +254,91 @@
             "finalMp4AssemblyManagedByBackend"
           ],
           "properties": {
+            "targetSeconds": { "type": "number", "minimum": 5 },
+            "commercialMaxSeconds": { "const": 60 },
+            "selectedPipeMaxSeconds": { "type": "number", "minimum": 20 },
+            "selectedPipeSupportsLongSequence": { "type": "boolean" },
+            "withinSelectedPipeDurationRange": { "const": true },
             "recommendedWorkflowMode": { "enum": ["single_clip", "storyboard_multishot"] },
-            "workflowControlCount": { "type": "integer", "minimum": 5 },
+            "workflowControlCount": { "type": "integer", "minimum": 6 },
+            "workflowControlModes": {
+              "type": "array",
+              "minItems": 6,
+              "items": {
+                "enum": [
+                  "auto",
+                  "single_clip",
+                  "storyboard_multishot",
+                  "reference_locked",
+                  "reference_board",
+                  "storyboard_board",
+                  "production_bible",
+                  "source_video_guided",
+                  "video_remake",
+                  "manual_storyboard"
+                ]
+              },
+              "contains": { "const": "video_remake" }
+            },
+            "pipeSelectionMode": {
+              "enum": ["smart_short", "product_kol_ugc", "storyboard_multishot", "video_remake", "production_bible"]
+            },
+            "pipeSelectionBackendPipe": {
+              "enum": [
+                "normal_short_pipe",
+                "product_kol_reference_pipe",
+                "storyboard_board_pipe",
+                "video_remake_pipe",
+                "long_sequence_bible_pipe"
+              ]
+            },
+            "pipeSelectionReasonCodeCount": { "type": "integer", "minimum": 1 },
+            "pipeSelectionVisualBibleAlignmentStatus": {
+              "enum": [
+                "aligned",
+                "reference_board_asset_workflow",
+                "storyboard_until_references",
+                "duration_override",
+                "canonical_backend_override"
+              ]
+            },
+            "pipeNavigationCount": { "const": 5 },
+            "pipeNavigationModes": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "items": {
+                "enum": [
+                  "smart_short",
+                  "product_kol_ugc",
+                  "storyboard_multishot",
+                  "video_remake",
+                  "production_bible"
+                ]
+              },
+              "contains": { "const": "production_bible" }
+            },
+            "pipeNavigationGroups": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "items": { "enum": ["short", "remake", "production"] },
+              "contains": { "const": "production" }
+            },
+            "pipeCapabilityPolicyPresent": { "const": true },
+            "pipeBackendAutoRouteProviderMode": { "const": true },
+            "pipeUserCannotPickRawProviderModel": { "const": true },
+            "recommendedPipeNavigationMode": {
+              "enum": [
+                "smart_short",
+                "product_kol_ugc",
+                "storyboard_multishot",
+                "video_remake",
+                "production_bible"
+              ]
+            },
+            "productionBibleSupportsLongSequence": { "const": true },
+            "videoRemakeWorkflowControlPresent": { "const": true },
             "directorPlanIdPresent": { "const": true },
             "directorStatus": { "enum": ["ready", "review_required", "blocked"] },
             "directorCreativeMode": {
@@ -152,6 +368,46 @@
             "creativePatternCandidateCount": { "type": "integer", "minimum": 8 },
             "creativePatternTopCandidateCount": { "type": "integer", "minimum": 3 },
             "selectedCreativeIdeaPresent": { "const": true },
+            "mediaReferenceCount": { "type": "integer", "minimum": 3 },
+            "mediaReferenceProviderHandoffCount": { "type": "integer", "minimum": 3 },
+            "mediaReferencePromptTags": {
+              "type": "array",
+              "minItems": 3,
+              "items": { "type": "string", "pattern": "^@(image|video|audio)[0-9]+$" },
+              "contains": { "const": "@image1" }
+            },
+            "seedanceRecommendedProviderMode": { "enum": ["text_to_video", "image_to_video", "reference_to_video"] },
+            "seedancePreferredTier": { "enum": ["mini", "fast", "standard"] },
+            "seedanceResolution": { "$ref": "#/$defs/seedanceResolution" },
+            "seedanceReturnLastFrame": { "type": "boolean" },
+            "seedancePromptRecipeName": {
+              "enum": [
+                "text_to_video_niche_short",
+                "image_to_video_product_or_kol",
+                "reference_to_video_multi_reference",
+                "reference_to_video_remake_blueprint",
+                "reference_board_to_video_sequence"
+              ]
+            },
+            "seedanceReferenceTagCount": { "type": "integer", "minimum": 3 },
+            "visualBibleStatus": { "enum": ["not_needed", "recommended", "required"] },
+            "visualBibleMode": { "enum": ["auto", "off", "reference_board", "storyboard_board", "production_bible"] },
+            "visualBibleRecommendedPipe": {
+              "enum": [
+                "normal_short_pipe",
+                "product_kol_reference_pipe",
+                "reference_board_pipe",
+                "storyboard_board_pipe",
+                "video_remake_pipe",
+                "long_sequence_bible_pipe"
+              ]
+            },
+            "visualBibleDurationBand": { "enum": ["single_clip_5_15", "short_multishot_15_60", "midform_sequence_60_180", "long_sequence_180_480"] },
+            "visualBibleAssetPlanCount": { "type": "integer", "minimum": 0 },
+            "visualBibleRequiredAssetPlanCount": { "type": "integer", "minimum": 0 },
+            "visualBibleBoardCount": { "type": "integer", "minimum": 1 },
+            "visualBibleTargetClipCount": { "type": "integer", "minimum": 1 },
+            "visualBibleBlocksRender": { "type": "boolean" },
             "reviewCheckpointCount": { "type": "integer", "minimum": 4 },
             "reviewCheckpointSurfaceCount": { "type": "integer", "minimum": 4 },
             "approvalPayloadContractGate": { "const": "pre_render" },
@@ -161,6 +417,162 @@
             "canCreateRenderJob": { "type": "boolean" },
             "canSubmitToProviderNow": { "const": false },
             "finalMp4AssemblyManagedByBackend": { "const": true }
+          }
+        },
+        "remakeUiContract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "statusCode",
+            "referenceRemakePresent",
+            "referenceRemakeMode",
+            "referenceRemakeStatus",
+            "replacementSlotCount",
+            "lockedElementCount",
+            "guardrailCount",
+            "canUseAfterReview",
+            "visualBibleRecommendedPipe",
+            "visualBibleStatus",
+            "seedanceRecommendedProviderMode",
+            "seedancePromptRecipeName",
+            "mediaReferenceCount",
+            "sourceVideoReferencePresent",
+            "userActionPresent"
+          ],
+          "properties": {
+            "statusCode": { "const": 200 },
+            "referenceRemakePresent": { "const": true },
+            "referenceRemakeMode": { "enum": ["structure_remake", "rights_cleared_close_remake"] },
+            "referenceRemakeStatus": { "enum": ["ready", "review_required", "blocked"] },
+            "replacementSlotCount": { "type": "integer", "minimum": 4 },
+            "lockedElementCount": { "type": "integer", "minimum": 4 },
+            "guardrailCount": { "type": "integer", "minimum": 4 },
+            "canUseAfterReview": { "type": "boolean" },
+            "visualBibleRecommendedPipe": {
+              "enum": [
+                "normal_short_pipe",
+                "product_kol_reference_pipe",
+                "reference_board_pipe",
+                "storyboard_board_pipe",
+                "video_remake_pipe",
+                "long_sequence_bible_pipe"
+              ]
+            },
+            "visualBibleStatus": { "enum": ["not_needed", "recommended", "required"] },
+            "seedanceRecommendedProviderMode": { "const": "reference_to_video" },
+            "seedancePromptRecipeName": { "const": "reference_to_video_remake_blueprint" },
+            "mediaReferenceCount": { "type": "integer", "minimum": 4 },
+            "sourceVideoReferencePresent": { "const": true },
+            "userActionPresent": { "const": true }
+          }
+        },
+        "visualBibleUiContract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "statusCode",
+            "visualBibleStatus",
+            "visualBibleMode",
+            "visualBibleRecommendedPipe",
+            "visualBibleDurationBand",
+            "assetPlanCount",
+            "requiredAssetPlanCount",
+            "boardCount",
+            "targetClipCount",
+            "blocksRenderUntilAssetsApproved",
+            "pipeSelectionMode",
+            "pipeSelectionBackendPipe",
+            "pipeSelectionReasonCodeCount",
+            "pipeSelectionVisualBibleAlignmentStatus",
+            "pipeNavigationCount",
+            "recommendedPipeNavigationMode",
+            "recommendedPipeNavigationBackendPipe",
+            "pipeNavigationBackendPipes",
+            "canCreateRenderJob",
+            "userActionPresent",
+            "promptRecipeName"
+          ],
+          "properties": {
+            "statusCode": { "const": 200 },
+            "visualBibleStatus": { "const": "required" },
+            "visualBibleMode": { "const": "reference_board" },
+            "visualBibleRecommendedPipe": { "const": "reference_board_pipe" },
+            "visualBibleDurationBand": { "enum": ["single_clip_5_15", "short_multishot_15_60", "midform_sequence_60_180", "long_sequence_180_480"] },
+            "assetPlanCount": { "type": "integer", "minimum": 2 },
+            "requiredAssetPlanCount": { "type": "integer", "minimum": 2 },
+            "boardCount": { "type": "integer", "minimum": 1 },
+            "targetClipCount": { "type": "integer", "minimum": 1 },
+            "blocksRenderUntilAssetsApproved": { "const": true },
+            "pipeSelectionMode": { "enum": ["product_kol_ugc", "storyboard_multishot"] },
+            "pipeSelectionBackendPipe": { "enum": ["product_kol_reference_pipe", "storyboard_board_pipe"] },
+            "pipeSelectionReasonCodeCount": { "type": "integer", "minimum": 1 },
+            "pipeSelectionVisualBibleAlignmentStatus": { "const": "reference_board_asset_workflow" },
+            "pipeNavigationCount": { "const": 5 },
+            "recommendedPipeNavigationMode": { "enum": ["product_kol_ugc", "storyboard_multishot"] },
+            "recommendedPipeNavigationBackendPipe": { "enum": ["product_kol_reference_pipe", "storyboard_board_pipe"] },
+            "pipeNavigationBackendPipes": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "items": {
+                "enum": [
+                  "normal_short_pipe",
+                  "product_kol_reference_pipe",
+                  "storyboard_board_pipe",
+                  "video_remake_pipe",
+                  "long_sequence_bible_pipe"
+                ]
+              }
+            },
+            "canCreateRenderJob": { "const": false },
+            "userActionPresent": { "const": true },
+            "promptRecipeName": { "const": "reference_board_to_video_sequence" }
+          }
+        },
+        "productionBibleUiContract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "statusCode",
+            "targetSeconds",
+            "commercialMaxSeconds",
+            "selectedPipeMinSeconds",
+            "selectedPipeMaxSeconds",
+            "selectedPipeIdealRangeSeconds",
+            "selectedPipeSupportsLongSequence",
+            "withinSelectedPipeDurationRange",
+            "pipeSelectionMode",
+            "pipeSelectionBackendPipe",
+            "recommendedPipeNavigationMode",
+            "visualBibleRecommendedPipe",
+            "visualBibleDurationBand",
+            "targetClipCount",
+            "canCreateRenderJob"
+          ],
+          "properties": {
+            "statusCode": { "const": 200 },
+            "targetSeconds": { "const": 90 },
+            "commercialMaxSeconds": { "const": 60 },
+            "selectedPipeMinSeconds": { "const": 60 },
+            "selectedPipeMaxSeconds": { "const": 480 },
+            "selectedPipeIdealRangeSeconds": {
+              "type": "array",
+              "prefixItems": [
+                { "const": 60 },
+                { "const": 180 }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "selectedPipeSupportsLongSequence": { "const": true },
+            "withinSelectedPipeDurationRange": { "const": true },
+            "pipeSelectionMode": { "const": "production_bible" },
+            "pipeSelectionBackendPipe": { "const": "long_sequence_bible_pipe" },
+            "recommendedPipeNavigationMode": { "const": "production_bible" },
+            "visualBibleRecommendedPipe": { "const": "long_sequence_bible_pipe" },
+            "visualBibleDurationBand": { "const": "midform_sequence_60_180" },
+            "targetClipCount": { "type": "integer", "minimum": 6 },
+            "canCreateRenderJob": { "const": false }
           }
         },
         "sessionUiContract": {
@@ -217,6 +629,11 @@
       "type": "array",
       "minItems": 1,
       "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "seedanceResolution": {
+      "enum": ["480p", "720p", "1080p", "720p-SR", "1080p-SR", "1440p-SR"]
     }
   }
 }

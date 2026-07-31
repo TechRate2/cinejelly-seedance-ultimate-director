@@ -1,6 +1,6 @@
 /**
  * Reference Selection Planner.
- * CineJelly-owned rewrite of ViMax-style reference selection: same camera/composition, recency,
+ * CineJelly-owned rewrite of reference-consistency selection: same camera/composition, recency,
  * duplicate suppression, one identity portrait per character/view, and max selected references.
  */
 

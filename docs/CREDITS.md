@@ -9,8 +9,8 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
 ## Current Repository Review
 
 - Repository reviewed: `TechRate2/cinejelly-seedance-ultimate-director`
-- Result: the current repository contains production TypeScript source, design documentation, and upstream Git Subtree snapshots under `external/upstream/`.
-- Current Git Subtree snapshots are stored under `external/upstream/`; see `docs/SUBTREE_POLICY.md` for the workflow and `docs/EXTERNAL_SOURCE_SNAPSHOTS.md` for local paths, license evidence, and reuse boundaries.
+- Result: the current repository contains production TypeScript source, design documentation, and curated upstream source snapshots under `external/upstream/`.
+- Current curated source snapshots are stored under `external/upstream/`; see `docs/SUBTREE_POLICY.md` for the workflow and `docs/EXTERNAL_SOURCE_SNAPSHOTS.md` for local paths, license evidence, pruning rules, and reuse boundaries.
 
 ## Primary Architecture References
 
@@ -43,6 +43,45 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Generalized structural patterns can be adapted into the Prompt Compiler and `data/` knowledge artifacts with source attribution.
 - CineJelly extension:
   - Converts mined prompt patterns into an adaptive Prompt Compiler that avoids hardcoded niche templates.
+  - 2026-07: systematic structural mining of the full curated corpus (131 prompts analyzed for
+    hook formulas, camera language, audio integration, reference usage, pacing, and viral
+    triggers) distilled — as ORIGINAL wording — into `src/core/niche-playbooks.ts` (13
+    content-family script-time playbooks + cross-family Seedance mastery rules injected into
+    the Story Architect) and 8 entertainment-family entries in
+    `src/core/short-prompt-pattern-corpus.ts`. No prompt text copied.
+
+### Video translation / dubbing pipelines (methodology reference, 2026)
+
+- Public open-source video-localization pipelines reviewed for methodology only (no code
+  or text copied): krillinai/KrillinAI (full transcribe->translate->TTS-dub->reformat
+  pipeline for short-video platforms), Huanshere/VideoLingo (Translate-Reflect-Adaptation
+  three-step subtitle localization to broadcast standards), jianchang512/pyvideotrans
+  (multi-role dubbing and audio-video sync workflow).
+- Methodology absorbed as ORIGINAL TypeScript: `src/core/subtitle-translator.ts`
+  (three-step translate/reflect/adapt in one structured LLM call; timing never altered;
+  single-line + chars-per-second subtitle limits; dubbing duration-fit mode; per-cue
+  fail-safe fallback) and `src/core/video-redub-planner.ts` (transcribe -> dubbing-aware
+  translate -> merged-utterance TTS intents through the existing generated-audio pipeline
+  -> duck-or-replace original-audio treatment; multi-language subtitle tracks from the
+  same cues).
+
+### Seedance prompt-engineering guides (methodology reference, 2026)
+
+- Public Seedance 2.0 prompt guides and prompt libraries reviewed for methodology only (no text copied):
+  ZeroLu/awesome-seedance, makesupday/Awesome-Seedance-2.0-Prompt-and-Examples,
+  gracech0322-cmd/seedance-2-prompt-library, HuyLe82US/awesome-seedance-prompts,
+  weshopai/awesome-Seedance-2.0-prompt, dexhunter/seedance2-skill; plus guides from
+  morphic.com and mindstudio.ai.
+- Methodology absorbed as ORIGINAL wording in `src/core/seedance-cinematic-grammar.ts`:
+  the CRAFT anatomy (context/reference/action/framing/timing) — already covered by the
+  compiler; reliable-Seedance film-grammar vocabulary (rack focus, shallow depth of field,
+  anamorphic flare, motivated lighting, hard rim / low-key, colour grades such as
+  teal-and-orange / bleach bypass / desaturated cold, 35mm grain); reference
+  disambiguation ("take X from this reference, not its background/lighting"); and timeline
+  timestamp beat divisions.
+- Note: guidance is that Seedance favours EXPLICIT specification over bracket "semantic
+  weighting" syntax, so bracket weighting is deliberately not used.
+  - `src/core/seedance-dna.ts` implements a niche-adaptive and creative-mode-adaptive prompt-DNA engine distilled from these patterns (original condensed direction, no verbatim prompt text) and carries the CC BY 4.0 attribution inline. It feeds the short-pipeline master prompt and the Seedance Prompt Compiler.
 
 ### HKUDS/ViMax
 
@@ -280,6 +319,30 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
 
 ## Other Frameworks Worth Monitoring
 
+### Anil-matcha/Open-AI-Micro-Drama-Generator
+
+- URL: https://github.com/Anil-matcha/Open-AI-Micro-Drama-Generator
+- Local snapshot: `external/upstream/open-ai-micro-drama-generator`
+- License: no license file found in the snapshot; treated as analysis-only reference, no code reuse.
+- Used for: multi-agent micro-drama pipeline shape (screenwriter -> storyboard -> per-scene still frames -> video).
+- CineJelly extension: the frames-stage concept is re-implemented as owned `src/core/keyframe-first-planner.ts` plus the provider-neutral `ImageProvider` contract; no upstream code is copied.
+
+### Anil-matcha/Open-AI-UGC
+
+- URL: https://github.com/Anil-matcha/Open-AI-UGC
+- Local snapshot: `external/upstream/open-ai-ugc`
+- License: no license file found in the snapshot; treated as analysis-only reference, no code reuse.
+- Used for: minimal-input UGC studio UX contract (idea plus a few reference images, everything else defaulted).
+- CineJelly extension: re-implemented as owned `src/core/simple-brief-resolver.ts` with plain-language default explanations for beginner-proof UI; no upstream code is copied.
+
+### SkyworkAI/SkyReels-V2
+
+- URL: https://github.com/SkyworkAI/SkyReels-V2
+- Local snapshot: `external/upstream/skyreels-v2` (docs and schema retained; media assets pruned)
+- License: Skywork model license file retained in the snapshot; model weights and inference code are not used at runtime.
+- Used for: short-drama methodology reference (hook-density/reversal-rhythm framing, structured shot-caption fields).
+- CineJelly extension: informs the owned Series Drama Planner and future shot-caption-style prompt fields; Seedance remains the render model.
+
 These were discovered during source review and are not primary sources for this first design:
 
 - LTX Studio: mentioned in Atlas Cloud's consistency article as focused on cinematic scene-to-scene character locking. It may be worth comparing for UI/UX and scene consistency workflows.
@@ -289,7 +352,7 @@ These were discovered during source review and are not primary sources for this 
 ## Attribution Policy for CineJelly
 
 - Cite public repos and articles in internal architecture docs.
-- Use Git Subtree snapshots under `external/upstream/` as the durable source trail for copied/adapted components.
+- Use curated source snapshots under `external/upstream/` as the durable source trail for copied/adapted components.
 - Copy or adapt documentation, patterns, structures, data, and compatible code into `docs/`, `data/`, or `src/` when the license permits the intended commercial product use.
 - Code moved into `src/` must become CineJelly-owned implementation: new or substantially adapted product code, not unchanged large upstream files.
 - Production code must not import directly from `external/upstream/`.

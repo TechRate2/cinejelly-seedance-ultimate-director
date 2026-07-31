@@ -6,10 +6,22 @@
 import type { AssembledDeliverable } from "../types/assembly.js";
 import type { DeliveryGateFinding, DeliveryGateReport } from "../types/delivery.js";
 import type { AspectRatio, FlexibleSeedanceSettings, Resolution } from "../types/settings.js";
+import { seedanceResolutionHeight } from "../config/seedance-settings.js";
 
 const ASPECT_RATIO_TOLERANCE = 0.02;
 const DURATION_WARN_TOLERANCE = 0.05;
 const DURATION_BLOCK_TOLERANCE = 0.15;
+/**
+ * Undershoot blocks earlier than overshoot: a video shorter than requested is the
+ * "thiếu thời lượng" defect customers notice immediately, while modest overshoot is
+ * usually acceptable padding.
+ */
+/**
+ * Short-side block threshold for the DELIVERED video. Exported as the SINGLE source of truth: any
+ * pre-spend predictor that stops a job early must use this exact number, or it either blocks jobs
+ * delivery would have accepted (lost revenue) or lets doomed jobs burn the full render (lost money).
+ */
+export const DURATION_SHORT_BLOCK_TOLERANCE = 0.1;
 
 export class DeliveryGate {
   public evaluate(input: {
@@ -114,9 +126,11 @@ export class DeliveryGate {
       return [];
     }
 
+    const isShort = actualDurationSeconds < targetDurationSeconds;
+    const blockTolerance = isShort ? DURATION_SHORT_BLOCK_TOLERANCE : DURATION_BLOCK_TOLERANCE;
     const driftPercent = Number((drift * 100).toFixed(2));
-    const evidence = `Expected approximately ${targetDurationSeconds}s but final deliverable is ${Number(actualDurationSeconds.toFixed(3))}s (${driftPercent}% drift).`;
-    if (drift > DURATION_BLOCK_TOLERANCE) {
+    const evidence = `Expected approximately ${targetDurationSeconds}s but final deliverable is ${Number(actualDurationSeconds.toFixed(3))}s (${driftPercent}% drift${isShort ? ", short side" : ""}).`;
+    if (drift > blockTolerance) {
       return [
         {
           status: "block",
@@ -153,15 +167,8 @@ export class DeliveryGate {
     ];
   }
 
-  private expectedHeight(resolution: Resolution): 480 | 720 | 1080 {
-    switch (resolution) {
-      case "480p":
-        return 480;
-      case "720p":
-        return 720;
-      case "1080p":
-        return 1080;
-    }
+  private expectedHeight(resolution: Resolution): 480 | 720 | 1080 | 1440 {
+    return seedanceResolutionHeight(resolution);
   }
 
   private expectedAspectRatio(ratio: AspectRatio): number | undefined {

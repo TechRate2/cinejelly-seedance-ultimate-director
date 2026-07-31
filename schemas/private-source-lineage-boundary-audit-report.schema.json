@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/private-source-lineage-boundary-audit-report.schema.json",
+  "title": "CineJelly Private Source Lineage Boundary Audit Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "checkedInputs",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.private-source-lineage-boundary-audit.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outputPath",
+        "publicSurfaceCount",
+        "sourceRootCount",
+        "lineageFieldCount",
+        "forbiddenFragmentCount"
+      ],
+      "properties": {
+        "outputPath": { "type": "string", "minLength": 1 },
+        "publicSurfaceCount": { "type": "integer", "minimum": 1 },
+        "sourceRootCount": { "type": "integer", "minimum": 1 },
+        "lineageFieldCount": { "type": "integer", "minimum": 1 },
+        "forbiddenFragmentCount": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message", "evidence"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["pass", "fail"] },
+          "message": { "type": "string", "minLength": 1 },
+          "evidence": { "type": "object" }
+        }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "privateSourceLineageBoundaryPass",
+        "canUseAsNoSpendApiPrivacyEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "privateSourceLineageBoundaryPass": { "type": "boolean" },
+        "canUseAsNoSpendApiPrivacyEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

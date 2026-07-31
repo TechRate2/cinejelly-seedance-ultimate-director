@@ -7,6 +7,7 @@ import { access, copyFile, open, rename, rm } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path";
 import type { AudioMixArtifact, AudioMixInput, AudioMixOptions, AudioMixTrack } from "../types/audio.js";
 import { ensureDirectory } from "../utils/files.js";
+import { ssrfSafeFetch } from "../utils/ssrf-guard.js";
 import { createStableId } from "../utils/ids.js";
 import { readMediaToolCommand } from "../utils/media-tools.js";
 import { runProcess } from "../utils/process.js";
@@ -32,10 +33,12 @@ export class AudioMixEngine {
     if (!input.options.enabled || input.tracks.length === 0) {
       throw new Error("Audio mix requires enabled options and at least one audio track.");
     }
+    if (input.materializedTrackPaths && input.materializedTrackPaths.length !== input.tracks.length) {
+      throw new Error("materializedTrackPaths must match tracks one-to-one when provided.");
+    }
     await ensureDirectory(input.workDirectory);
-    const localTracks = await Promise.all(
-      input.tracks.map((track, index) => this.materializeTrack(input.projectId, input.workDirectory, track, index, signal))
-    );
+    const localTracks = input.materializedTrackPaths
+      ?? await this.materializeTracks(input.projectId, input.workDirectory, input.tracks, signal);
     const args = this.buildFfmpegArgs(input, localTracks);
     await runProcess(readMediaToolCommand("ffmpeg"), args, signal);
 
@@ -45,6 +48,24 @@ export class AudioMixEngine {
       mixedAt: new Date(),
       mode: input.options.mode
     };
+  }
+
+  /**
+   * Download/copy every track into the work directory and return the local path per track (same
+   * order). Public so callers that must MEASURE the files before mixing (dubbing duration-fit probes
+   * each synthesized segment with ffprobe) reuse the exact SSRF-guarded download path, then hand the
+   * files back via `materializedTrackPaths`.
+   */
+  public async materializeTracks(
+    projectId: string,
+    workDirectory: string,
+    tracks: readonly AudioMixTrack[],
+    signal?: AbortSignal
+  ): Promise<readonly string[]> {
+    await ensureDirectory(workDirectory);
+    return Promise.all(
+      tracks.map((track, index) => this.materializeTrack(projectId, workDirectory, track, index, signal))
+    );
   }
 
   private async materializeTrack(
@@ -77,7 +98,8 @@ export class AudioMixEngine {
     targetPath: string,
     signal?: AbortSignal
   ): Promise<void> {
-    const response = await fetch(sourceUrl, signal ? { signal } : undefined);
+    // SSRF guard: validates the target AND re-validates every redirect hop before issuing it.
+    const response = await ssrfSafeFetch(sourceUrl, signal ? { signal } : {}, { label: `Audio track ${track.trackId}` });
     if (!response.ok) {
       throw new Error(`Failed to download audio track ${track.trackId}: HTTP ${response.status}`);
     }
@@ -144,22 +166,78 @@ export class AudioMixEngine {
     const filterParts: string[] = [];
     const audioLabels: string[] = [];
 
+    // Normalize every input to a common rate/format before amix: amix does not resample,
+    // so a 44.1kHz music bed against 48kHz original audio would fail filter negotiation.
+    const normalize = "aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo";
     if (includeOriginal) {
-      filterParts.push(`[0:a]volume=${this.safeVolume(input.options.originalVolume)}[a0]`);
+      // apad the original bed too: with amix duration=first, an un-padded original that ends before
+      // the video (trailing outro/title card) would cut the whole dubbed.mp4 short via -shortest
+      // (deep-audit MEDIUM). Padded, the mix spans the full video length.
+      filterParts.push(`[0:a]${normalize},volume=${this.safeVolume(input.options.originalVolume)},apad[a0]`);
       audioLabels.push("[a0]");
+    }
+    // apad on every supplied track: a music bed shorter than the video pads with silence
+    // instead of ending the mix early (-shortest then bounds output at the video length),
+    // and short tracks no longer drop out mid-mix.
+    input.tracks.forEach((track, index) => {
+      const inputIndex = index + 1;
+      // adelay places a timed cue at its planned start (narration segment 2 at 8s, an SFX at 20s, …)
+      // instead of every track stacking at 0:00. Silence is prepended before apad pads the tail.
+      const startMs = Math.max(0, Math.round((track.startSeconds ?? 0) * 1000));
+      const delay = startMs > 0 ? `,adelay=${startMs}:all=1` : "";
+      // atempo BEFORE adelay: tempo compresses the segment's content; the delay is wall-clock
+      // placement and must not be scaled. Used by dubbing duration-fit for overlong segments.
+      const tempo = this.safeTempo(track.tempo);
+      const tempoFilter = tempo !== undefined ? `,atempo=${tempo}` : "";
+      filterParts.push(`[${inputIndex}:a]${normalize},volume=${this.safeVolume(track.volume)}${tempoFilter}${delay},apad[t${inputIndex}]`);
+    });
+    // Sidechain ducking: when narration and music are both present, the first narration
+    // track drives a compressor on every music track so the voice stays intelligible.
+    const narrationIndexes = input.tracks
+      .map((track, index) => ({ track, index }))
+      .filter((item) => item.track.role === "narration")
+      .map((item) => item.index);
+    const musicIndexes = input.tracks
+      .map((track, index) => ({ track, index }))
+      .filter((item) => item.track.role === "music")
+      .map((item) => item.index);
+    const duckingEnabled = narrationIndexes.length > 0 && musicIndexes.length > 0;
+    const duckSourceInput = (narrationIndexes[0] ?? 0) + 1;
+    if (duckingEnabled) {
+      const copies = musicIndexes.length + 1;
+      const splitLabels = Array.from({ length: copies }, (_, copy) =>
+        copy === 0 ? `[n${duckSourceInput}mix]` : `[duck${copy}]`
+      );
+      filterParts.push(`[t${duckSourceInput}]asplit=${copies}${splitLabels.join("")}`);
+      musicIndexes.forEach((trackIndex, order) => {
+        const inputIndex = trackIndex + 1;
+        filterParts.push(
+          `[t${inputIndex}][duck${order + 1}]sidechaincompress=threshold=0.05:ratio=6:attack=30:release=400[t${inputIndex}d]`
+        );
+      });
     }
     input.tracks.forEach((track, index) => {
       const inputIndex = index + 1;
-      const label = `[a${inputIndex}]`;
-      filterParts.push(`[${inputIndex}:a]volume=${this.safeVolume(track.volume)}${label}`);
-      audioLabels.push(label);
+      if (duckingEnabled && track.role === "music") {
+        audioLabels.push(`[t${inputIndex}d]`);
+      } else if (duckingEnabled && inputIndex === duckSourceInput) {
+        audioLabels.push(`[n${inputIndex}mix]`);
+      } else {
+        audioLabels.push(`[t${inputIndex}]`);
+      }
     });
 
     const outputLabel = "[aout]";
     if (audioLabels.length === 1) {
       filterParts.push(`${audioLabels[0]}anull${outputLabel}`);
     } else {
-      filterParts.push(`${audioLabels.join("")}amix=inputs=${audioLabels.length}:duration=first:dropout_transition=2${outputLabel}`);
+      // normalize=0: amix's default scales EVERY input by 1/N, so a dub with 20 timed narration
+      // segments (each its own input) played the voice at ~5% volume — near-inaudible (audit).
+      // Segments are time-disjoint via adelay, so without auto-scaling the levels stay authored;
+      // the limiter catches the moments where overlapping tracks (voice over bed) sum past 1.0.
+      filterParts.push(
+        `${audioLabels.join("")}amix=inputs=${audioLabels.length}:duration=first:dropout_transition=2:normalize=0,alimiter=limit=0.97${outputLabel}`
+      );
     }
 
     args.push(
@@ -186,6 +264,19 @@ export class AudioMixEngine {
       throw new Error("Audio track volume must be a non-negative number.");
     }
     return Math.min(volume, 4);
+  }
+
+  /** Validate an optional atempo ratio; 1/undefined → no filter. Single-instance ffmpeg range is 0.5–2. */
+  private safeTempo(tempo: number | undefined): number | undefined {
+    if (tempo === undefined) {
+      return undefined;
+    }
+    if (!Number.isFinite(tempo) || tempo < 0.5 || tempo > 2) {
+      throw new Error("Audio track tempo must be within ffmpeg's single-stage atempo range 0.5–2.");
+    }
+    // Round to 3 decimals for a stable filtergraph string; treat ~1 as "no change".
+    const rounded = Math.round(tempo * 1000) / 1000;
+    return Math.abs(rounded - 1) < 0.001 ? undefined : rounded;
   }
 
   private isRemoteUrl(value: string): boolean {

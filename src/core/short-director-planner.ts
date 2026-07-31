@@ -1,6 +1,6 @@
 /**
  * Short Director planner.
- * Translates Seedance 2.0 short/multishot grammar and OpenMontage short-form/checkpoint behavior
+ * Translates Seedance 2.0 short/multishot grammar and short-form checkpoint behavior
  * into a no-spend CineJelly-owned planning artifact.
  */
 
@@ -25,13 +25,12 @@ import type {
 } from "../types/short-pipeline.js";
 import type { ShortViralIntelligencePlan } from "../types/short-viral-intelligence.js";
 import { createStableId } from "../utils/ids.js";
+import {
+  internalSourcePatternOrigins,
+  SHORT_DIRECTOR_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "Emily2040/seedance-2.0",
-  "calesthio/OpenMontage",
-  "YouMind-OpenLab/awesome-seedance-2-prompts",
-  "video-db/Director"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(SHORT_DIRECTOR_SOURCE_PATTERN_IDS);
 
 export interface ShortDirectorPlannerInput {
   readonly projectId: string;
@@ -180,7 +179,7 @@ export class ShortDirectorPlanner {
       findings.push({
         code: "no_visible_text_caption_adaptation",
         severity: "info",
-        message: "OpenMontage-style short-form captions are adapted into review/export metadata because this product policy forbids visible text in video.",
+        message: "Storyboard-style short-form captions are adapted into review/export metadata because this product policy forbids visible text in video.",
         repair: "Keep captions disabled for burn-in; expose transcript/caption review outside the rendered frame."
       });
     }

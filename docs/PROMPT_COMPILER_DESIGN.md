@@ -1,4 +1,9 @@
 # Prompt Compiler Design
+> ⚠️ **TÀI LIỆU THIẾT KẾ — KHÔNG PHẢI MÔ TẢ CODE HIỆN TẠI.**
+> Cập nhật lần cuối: **2026-07-02**. Từ đó tới nay mã nguồn đã đổi rất nhiều.
+> Đọc [`BAN-DO-DU-AN.md`](../BAN-DO-DU-AN.md) để biết dự án HIỆN TẠI ra sao.
+> Khi tài liệu này mâu thuẫn với code, **code đúng** — tài liệu là cái sai.
+
 
 ## Purpose
 
@@ -139,7 +144,8 @@ Rules:
 - Audio references are attached to rhythm, lip-sync, cuts, or ambience.
 - First and last frames are treated as endpoint constraints.
 - If source limits conflict across articles, runtime provider schema wins.
-- `source_video_structure` remains planning/prose guidance by default and is not sent as a provider reference unless supported by the selected provider capability.
+- `source_video_structure` remains planning/prose guidance by default and is sent as a provider video reference only when source rights are explicitly authorized and the selected provider capability supports that reference kind.
+- Any authorized provider video, source-video, motion, camera, audio, voice, or style reference must compile as `reference_to_video`; image-only first/last/identity/product anchors compile as `image_to_video`; no provider references compile as `text_to_video`.
 - Binding conflicts are emitted to Consistency Guardian preflight before provider spend.
 
 ## Identity vs Motion Weighting

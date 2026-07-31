@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/video-render-strategy-smoke-report.schema.json",
+  "title": "CineJelly Video Render Strategy Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "scenarios",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.video-render-strategy-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 3,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "scenarioCount", "rawUrlLeakCheckPassed"],
+      "properties": {
+        "outputPath": { "type": "string", "minLength": 1 },
+        "scenarioCount": { "type": "integer", "minimum": 8 },
+        "rawUrlLeakCheckPassed": { "type": "boolean" }
+      }
+    },
+    "scenarios": {
+      "type": "object",
+      "minProperties": 8,
+      "additionalProperties": { "$ref": "#/$defs/scenario" }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 10,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsNoSpendVideoRenderStrategyEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsNoSpendVideoRenderStrategyEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "projectId",
+        "requestedMode",
+        "workflowMode",
+        "continuityMode",
+        "targetDurationSeconds",
+        "plannedShotCount",
+        "requiresSequentialRender",
+        "requiresStoryboardApproval",
+        "storyboardApprovalStatus",
+        "lastFrameChainingStatus",
+        "issueCount",
+        "warningIssueCount",
+        "blockingIssueCount",
+        "issueCodes"
+      ],
+      "properties": {
+        "projectId": { "type": "string", "minLength": 1 },
+        "requestedMode": {
+          "enum": [
+            "auto",
+            "single",
+            "storyboard",
+            "multishot",
+            "reference_locked",
+            "source_video",
+            "sequence_bible",
+            "manual_storyboard"
+          ]
+        },
+        "workflowMode": {
+          "enum": [
+            "single_clip",
+            "reference_locked_single_clip",
+            "storyboard_multishot",
+            "reference_locked_multishot",
+            "source_video_guided",
+            "sequence_bible",
+            "manual_storyboard"
+          ]
+        },
+        "continuityMode": {
+          "enum": [
+            "single_clip",
+            "reference_locked",
+            "last_frame_chaining",
+            "source_video_guided",
+            "sequence_bible",
+            "manual_locked"
+          ]
+        },
+        "targetDurationSeconds": { "type": "number", "minimum": 1 },
+        "plannedShotCount": { "type": "integer", "minimum": 1 },
+        "requiresSequentialRender": { "type": "boolean" },
+        "requiresStoryboardApproval": { "type": "boolean" },
+        "storyboardApprovalStatus": { "enum": ["not_required", "missing", "approved", "changes_requested"] },
+        "lastFrameChainingStatus": { "enum": ["not_needed", "recommended", "required", "blocked"] },
+        "issueCount": { "type": "integer", "minimum": 0 },
+        "warningIssueCount": { "type": "integer", "minimum": 0 },
+        "blockingIssueCount": { "type": "integer", "minimum": 0 },
+        "issueCodes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "schedule": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["batchCount", "parallelBatchCount", "sequentialItemCount", "sequentialReasons"],
+          "properties": {
+            "batchCount": { "type": "integer", "minimum": 1 },
+            "parallelBatchCount": { "type": "integer", "minimum": 0 },
+            "sequentialItemCount": { "type": "integer", "minimum": 0 },
+            "sequentialReasons": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

@@ -381,7 +381,7 @@ function buildCommercialOfferScopeSummary(reports) {
       blocksFullSnapshotParity: true,
       sourceReport: launchIntake.path,
       message:
-        "Commercial launch scope is explicitly API/CLI/operator-report only; first-party Web UI remains a full snapshot parity gap but does not block the scoped API/CLI launch path."
+        "Commercial launch scope is explicitly API/CLI/operator-report only; the current first-party Short Studio/operator shells remain partial product surfaces and do not block the scoped API/CLI launch path, but a full commercial Web UI still blocks complete WebUI/source-parity claims."
     };
   }
   if (configured && productSurface === "first_party_web_ui_required") {
@@ -397,7 +397,7 @@ function buildCommercialOfferScopeSummary(reports) {
       blocksFullSnapshotParity: true,
       sourceReport: launchIntake.path,
       message:
-        "Commercial launch scope requires a first-party Web UI before customer traffic; API/CLI-only launch is not an approved scope escape hatch."
+        "Commercial launch scope requires a full first-party commercial Web UI before customer traffic; the existing Short Studio/operator shells are useful foundations but are not an approved scope escape hatch by themselves."
     };
   }
   return {
@@ -411,7 +411,7 @@ function buildCommercialOfferScopeSummary(reports) {
     blocksFullSnapshotParity: true,
     sourceReport: launchIntake.path,
     message:
-      "Commercial launch scope is not yet decided; first-party Web UI remains a product-scope decision before any completeness claim."
+      "Commercial launch scope is not yet decided; the existing first-party Short Studio/operator shells are partial, and the full customer/commercial Web UI remains a product-scope decision before any completeness claim."
   };
 }
 
@@ -497,13 +497,13 @@ function buildProductCodeGaps(commercialOfferScopeSummary) {
 function buildFirstPartyWebUiGap(scopeSummary) {
   const base = {
     id: "first_party_web_ui",
-    label: "First-party web UI is not implemented",
+    label: "First-party commercial Web UI is partial",
     category: "operator_surface",
-    currentCoveragePercent: 0,
-    sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
+    currentCoveragePercent: 35,
+    sourceEvidence: "assets/output_deliverables/business-readiness/short-mvp-ui-contract-smoke-report.json",
     sourcePatternOrigins: ["harry0703/MoneyPrinterTurbo"],
     canAutomateNow: false,
-    localPreparationAvailable: false,
+    localPreparationAvailable: true,
     completionRequiresExternalEvidence: false,
     remainingEvidenceGateCount: 0,
     blocksFullSnapshotParity: true
@@ -513,12 +513,12 @@ function buildFirstPartyWebUiGap(scopeSummary) {
       ...base,
       status: "scoped_out_for_api_cli_launch",
       requiredAction:
-        "Keep first-party Web UI visible as a full snapshot parity gap; the current commercial intake explicitly scopes the offer as API/CLI/operator-report only.",
+        "Keep the full first-party commercial Web UI visible as a snapshot parity gap; the current commercial intake explicitly scopes the offer as API/CLI/operator-report only while the partial Short Studio/operator shells remain backend-integration surfaces.",
       scopeDecisionRequired: false,
       scopeDecisionOptions: [],
       blocksApiCliCommercialLaunch: false,
       releaseImpact:
-        "Does not block the explicitly scoped API/CLI commercial launch path, but still blocks 100% MoneyPrinterTurbo-style WebUI/source-parity claims."
+        "Does not block the explicitly scoped API/CLI commercial launch path, but still blocks 100% MoneyPrinterTurbo-style WebUI/source-parity claims until the full commercial UI is finished and validated."
     };
   }
   if (scopeSummary.status === "first_party_web_ui_required") {
@@ -526,19 +526,19 @@ function buildFirstPartyWebUiGap(scopeSummary) {
       ...base,
       status: "required_before_customer_traffic",
       requiredAction:
-        "Build and validate a first-party customer/operator Web UI before customer traffic, or update the commercial launch intake to an approved API/CLI-only scope.",
+        "Finish and validate the full first-party customer/operator Web UI before customer traffic, using the existing Short Studio/operator shells and backend UI contracts as the starting point, or update the commercial launch intake to an approved API/CLI-only scope.",
       scopeDecisionRequired: false,
       scopeDecisionOptions: [],
       blocksApiCliCommercialLaunch: true,
       releaseImpact:
-        "Blocks the current scoped commercial launch because the operator decision requires a first-party Web UI before customer traffic."
+        "Blocks the current scoped commercial launch because the operator decision requires a full first-party commercial Web UI before customer traffic; the current shells are not enough for that scope."
     };
   }
   return {
     ...base,
     status: "scope_decision_pending",
     requiredAction:
-      "Build and validate a first-party customer/operator UI, or explicitly scope the commercial offer as API/CLI-only before claiming launch completeness.",
+      "Decide whether the existing Short Studio/operator shells are only internal/backend-integration surfaces for this launch, or finish a full first-party customer/operator UI before claiming launch completeness.",
     scopeDecisionRequired: true,
     scopeDecisionOptions: ["build_first_party_web_ui", "scope_commercial_offer_api_cli_only"],
     blocksApiCliCommercialLaunch: false,

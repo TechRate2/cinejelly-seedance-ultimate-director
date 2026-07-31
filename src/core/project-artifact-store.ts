@@ -1,6 +1,6 @@
 /**
  * Durable project artifact writer.
- * Extension based on VibeFrame and OpenMontage artifact discipline: every production run emits deterministic,
+ * Extension based on storyboard-video artifact discipline: every production run emits deterministic,
  * redacted JSON artifacts for review, repair, cost audit, and customer handoff.
  */
 
@@ -151,7 +151,7 @@ export class ProjectArtifactStore {
       longDirectorNarrativeMode: longDirectorUiContract.director.narrativeMode,
       longDirectorCheckpointStageCount: longDirectorUiContract.director.checkpointStages.length,
       longDirectorManualQualityReviewRequired: longDirectorUiContract.outputContract.longFormManualQualityReviewRequired,
-      longDirectorBenchEvidenceRequired: longDirectorUiContract.outputContract.directorBenchEvidenceRequired,
+      longDirectorBenchEvidenceRequired: longDirectorUiContract.outputContract.benchmarkEvidenceRequired,
       longDirectorCanSubmitToProviderNow: longDirectorUiContract.outputContract.canSubmitToProviderNow,
       longDirectorCanProceedToRenderAfterApproval: longDirectorUiContract.outputContract.canProceedToRenderAfterApproval,
       longDirectorRepairQueueCount: longDirectorUiContract.outputContract.repairQueueCount,
