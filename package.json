@@ -185,7 +185,8 @@
     "validation:render-failure-resilience": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-render-failure-resilience-smoke.mjs",
     "validation:wire-contract": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-wire-contract-smoke.mjs",
     "validation:published-secrets": "node scripts/audit-published-secrets.mjs",
-    "validation:tenant-isolation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-tenant-isolation-smoke.mjs"
+    "validation:tenant-isolation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-tenant-isolation-smoke.mjs",
+    "validation:test-integrity": "node scripts/audit-test-integrity.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -697,9 +697,55 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
   const esIntent = await new CreativeBriefAnalyst(esLlm, "f").analyze({ projectId: "d", userInput: "haz un video del producto", settings, references: [], metadata: {} });
   check("audit#6: analyst coerces 'Spanish' -> 'es'", esIntent.language === "es", esIntent.language);
   const directorSrc = readFileSync(resolve(repoRoot, "src/agents/director-agent.ts"), "utf8");
-  check("audit#6: director stamps analyst language as analystVoiceLanguage metadata", directorSrc.includes("analystVoiceLanguage") && directorSrc.includes("|| analystLanguage"), "");
-  check("audit#6: per-line VN diacritics outrank the analyst whole-video language at TTS",
-    /containsVietnameseDiacritics\(spokenLine\) \? "vi" : ""\)\s*\|\|\s*analystLanguage/.test(directorSrc), "");
+  // BEHAVIOUR, not source text. These two previously grepped director-agent.ts for the identifier
+  // and for a regex matching one exact spelling of the precedence expression — so they stayed green
+  // if the value was computed and then never used, and went red if the expression was merely
+  // reformatted. They guard a real past defect (a Vietnamese line voiced by the English TTS model),
+  // so they now drive the real talking-shot stage and read the language actually sent to TTS.
+  {
+    const { DirectorAgent: LangDirector } = await import(`${base}/agents/director-agent.js`);
+    const langSettings = {
+      apiKey: "t", llmApiKey: "t",
+      apiBaseUrl: "https://api.atlascloud.ai/api/v1", assetBaseUrl: "https://api.atlascloud.ai/api/v1",
+      models: { llmModel: "m", seedanceStandardModel: "s", seedanceFastModel: "s", ttsModel: "tts", avatarModel: "av" },
+      seedanceCapabilities: [], generatedAudioCapabilities: [],
+      requestTimeoutMs: 5000, maxJsonResponseBytes: 100000, pollingIntervalMs: 100, pollingTimeoutMs: 5000
+    };
+    const voiceLanguageFor = async (spokenLine, shotMetadata) => {
+      let seen;
+      const speechProvider = {
+        async synthesizeSpeech(request) {
+          seen = request.languageCode;
+          return { provider: "atlascloud", predictionId: "p", modelId: "tts", status: "succeeded",
+            outputUrls: ["https://cdn.example/v.mp3"], raw: {}, submittedAt: new Date() };
+        }
+      };
+      const shot = {
+        shotId: "s1", sceneId: "sc", beatId: "b", order: 0, durationSeconds: 6,
+        prompt: "p", spokenLine, metadata: shotMetadata, continuity: {},
+        references: [{ role: "first_frame", label: "kf",
+          providerReference: { kind: "image", uri: "https://cdn.example/kf.png", role: "first_frame", label: "kf" } }]
+      };
+      await new LangDirector({ atlasSettings: langSettings, speechProvider }).runTalkingShotStage({
+        shots: [shot], compiledPrompts: [{ shotId: "s1", prompt: "p", negativePrompt: "", metadata: {} }],
+        settings: { durationTargetSeconds: 6 }
+      });
+      return seen;
+    };
+    // The analyst's whole-video guess reaches TTS when the line carries no evidence of its own.
+    check("audit#6: analyst language reaches the TTS call",
+      (await voiceLanguageFor("Hola a todos, bienvenidos", { analystVoiceLanguage: "es" })) === "es",
+      String(await voiceLanguageFor("Hola a todos, bienvenidos", { analystVoiceLanguage: "es" })));
+    // Per-line Vietnamese evidence OUTRANKS that guess: an English-labelled video with a Vietnamese
+    // line must still be voiced in Vietnamese. This is the defect the check exists for.
+    check("audit#6: per-line VN diacritics outrank the analyst whole-video language at TTS",
+      (await voiceLanguageFor("Mình dùng cái này ba tuần rồi nha", { analystVoiceLanguage: "en" })) === "vi",
+      String(await voiceLanguageFor("Mình dùng cái này ba tuần rồi nha", { analystVoiceLanguage: "en" })));
+    // An EXPLICIT request language outranks both — the customer's own choice is final.
+    check("audit#6: explicit request language outranks per-line evidence",
+      (await voiceLanguageFor("Mình dùng cái này ba tuần rồi nha", { shortAudioLanguage: "ja", analystVoiceLanguage: "en" })) === "ja",
+      String(await voiceLanguageFor("Mình dùng cái này ba tuần rồi nha", { shortAudioLanguage: "ja", analystVoiceLanguage: "en" })));
+  }
 
   // audit#9 — talking-shot TTS + avatar spend is inside the pre-spend cost gate
   const { RenderCostGate } = await import(`${base}/core/render-cost-gate.js`);
