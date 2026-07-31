@@ -2,7 +2,7 @@
 
 > Bản đồ tổng: [`../../BAN-DO-DU-AN.md`](../../BAN-DO-DU-AN.md)
 
-107 file, phần lớn khối lượng của dự án. **Không file nào ở đây được gọi mạng hay đọc biến
+106 file, phần lớn khối lượng của dự án. **Không file nào ở đây được gọi mạng hay đọc biến
 môi trường** — có máy kiểm tra chặn (`npm test`).
 
 ## Bốn nhóm

@@ -1,3 +1,14 @@
+/**
+ * Decides HOW a job is rendered before any money is spent: one continuous clip or several chained
+ * shots, whether last-frame chaining is on, and which reference roles the plan is actually allowed
+ * to use.
+ *
+ * The decision is derived from the customer's request, the authored story plan and the shot list
+ * together, because no one of those knows enough alone — a request may ask for a single take that
+ * the duration cannot hold, and a shot list may imply chaining that the selected references cannot
+ * support. Disagreements are returned as issues rather than resolved silently, so a job that cannot
+ * be rendered the way it was asked for is reported instead of quietly rendered a different way.
+ */
 import type { CineJellyProjectRequest, StoryPlan } from "../types/agent.js";
 import type { ReferenceRole, ShotContract } from "../types/prompt.js";
 import type {

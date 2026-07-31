@@ -1,7 +1,12 @@
-# CineJelly Seedance Ultimate Director
+# AI Video Studio
 
 Agent làm video tự động bằng Seedance 2.0 (qua Atlas Cloud). Khách viết một câu hoặc tải ảnh lên,
 hệ thống tự viết kịch bản, vẽ khung hình đầu cho từng cảnh, render, lồng tiếng, ghép và giao MP4.
+
+> **Về cái tên:** phần khách nhìn thấy lấy tên từ biến môi trường `PRODUCT_NAME` (mặc định
+> *AI Video Studio*) — đặt tên gì cũng được, không cần sửa code. Chữ `CineJelly` còn nằm trong tên
+> kiểu dữ liệu, tên header HTTP và phiên bản schema; đó là **định danh kỹ thuật, cố ý giữ nguyên**.
+> Đổi chúng sẽ làm mọi phiên đăng nhập đang mở bị văng và dữ liệu đã lưu đọc không ra.
 
 ## 👉 Bắt đầu ở đây
 
@@ -9,6 +14,10 @@ hệ thống tự viết kịch bản, vẽ khung hình đầu cho từng cảnh
 render đi qua những bước gì, sửa chỗ nào cho việc gì, và những gì còn dang dở.
 
 Đọc file đó trước. Nó viết cho cả chủ dự án (không đọc code) lẫn model AI được nhờ sửa code.
+
+**[docs/BAN-DO-MA-NGUON.md](docs/BAN-DO-MA-NGUON.md)** — bảng tra 187 module: mỗi file làm gì, dài
+bao nhiêu dòng. File này **do máy sinh ra từ chú thích trong chính mã nguồn** và `npm test` báo đỏ
+nếu nó lệch với code, nên nó không thể cũ đi mà không ai biết.
 
 ## Lệnh cần nhớ
 
@@ -19,13 +28,13 @@ npm run doctor  # kiểm tra máy đã sẵn sàng chưa
 npm start       # bật máy chủ
 ```
 
-`npm test` chạy 93 bài kiểm tra + 5 bài soi toàn dự án mà **không tốn một đồng nào**.
+`npm test` chạy 98 bài kiểm tra + 9 bài soi toàn dự án mà **không tốn một đồng nào**.
 Chạy nó sau mỗi lần sửa. Lệnh **duy nhất** tiêu tiền thật là `npm run validation:paid-render`.
 
 ## Quy tắc bắt buộc
 
 - `src/core/` không đọc biến môi trường, không gọi mạng. Chỉ `src/providers/` được gọi internet.
-- Không tạo file test/mock/demo trong `src/` — bài kiểm tra sống ở `scripts/`.
+- Không tạo file test/mock/demo trong `src/` — bài kiểm tra sống ở `tests/`, bài soi ở `scripts/`.
 - Mọi cửa chặn phải chạy **trước** bước tốn tiền mà nó bảo vệ.
 - `external/upstream/` là repo tham khảo, không phải code chạy. Xem mục 7 của bản đồ để biết
   repo nào được phép sao chép (7 repo MIT) và repo nào không (AGPL-3.0 + không giấy phép).

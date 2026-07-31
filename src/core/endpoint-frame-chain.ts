@@ -1,3 +1,19 @@
+/**
+ * Picks the still that the NEXT shot starts from, so a multi-shot video looks like one continuous
+ * take instead of a slideshow of unrelated clips.
+ *
+ * Seedance can return a last-frame image alongside the clip. When it does, this chooses it by name
+ * and by real image evidence rather than trusting the order of the output list. When it does not,
+ * ffmpeg extracts the true final frame from the rendered clip — the fallback is what keeps the chain
+ * unbroken on shots the provider returns bare, and a broken chain is visible to the customer as a
+ * jump cut in the middle of a video they paid for.
+ *
+ * Also extracts the closing frame of a finished episode so the next episode of a series can open
+ * where the last one ended.
+ *
+ * Remote reads go through the shared SSRF guard: the URL comes from a provider response, which is
+ * outside data, and this module fetches it.
+ */
 import { createHash } from "node:crypto";
 import { rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";

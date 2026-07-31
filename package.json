@@ -188,7 +188,8 @@
     "validation:tenant-isolation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-tenant-isolation-smoke.mjs",
     "validation:test-integrity": "node scripts/audit-test-integrity.mjs",
     "validation:assembly-delivery": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-assembly-delivery-smoke.mjs",
-    "validation:provider-retry-behaviour": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-provider-retry-behaviour-smoke.mjs"
+    "validation:provider-retry-behaviour": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-provider-retry-behaviour-smoke.mjs",
+    "validation:module-index": "node scripts/audit-module-index.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

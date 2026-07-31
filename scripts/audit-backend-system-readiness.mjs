@@ -278,6 +278,7 @@ const auditedValidationCommandNames = [
   "validation:subtitle-dub",
   "validation:tenant-isolation",
   "validation:test-integrity",
+  "validation:module-index",
   "validation:talking-duration-fill",
   "validation:transition-audio-continuity",
   "validation:ui-contract-crosscheck",

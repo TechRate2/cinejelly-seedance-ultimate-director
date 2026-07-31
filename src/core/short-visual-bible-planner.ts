@@ -1,3 +1,13 @@
+/**
+ * Plans the visual bible — the reference board, storyboard or full production bible that fixes how a
+ * video will LOOK before it is rendered.
+ *
+ * Its most consequential output is `blocksRenderUntilAssetsApproved`: whether the customer must
+ * approve the look before the render is allowed to spend. That is deliberately narrow — it turns on
+ * only when the mode explicitly demands approval AND an asset is genuinely missing — because a gate
+ * that blocks when nothing is wrong trains people to click through gates, and this one stands in
+ * front of the money.
+ */
 import type {
   ProductUrlBrief,
   ShortMediaReferencePlan,

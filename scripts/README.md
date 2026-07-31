@@ -12,7 +12,7 @@ Trước đây nó trộn lẫn 153 file cả kiểm tra lẫn vận hành, khô
 npm test
 ```
 
-Chạy toàn bộ 93 bài kiểm tra ở `tests/` **và** 6 bài soi ở đây. Không tốn tiền, trả lời tiếng Việt.
+Chạy toàn bộ bài kiểm tra ở `tests/` **và** mọi bài soi ở đây (số lượng in ra khi chạy). Không tốn tiền, trả lời tiếng Việt.
 
 ## 1. Công cụ chủ hệ thống
 

@@ -35,7 +35,7 @@ Một ô nhập, một nút, một video.
 | Bật máy chủ | `npm start` |
 | Kiểm tra nhanh, không dịch lại mã | `npm run check:fast` |
 
-**`npm test` là lệnh quan trọng nhất.** Nó chạy 98 bài kiểm tra + 8 bài soi toàn dự án,
+**`npm test` là lệnh quan trọng nhất.** Nó chạy 98 bài kiểm tra + 9 bài soi toàn dự án,
 **không tốn một đồng nào**, và trả lời bằng tiếng Việt. Sau khi AI sửa bất cứ thứ gì, chạy lệnh này.
 Nếu nó nói *"Dự án đang ổn"* thì yên tâm. Nếu có bài đỏ, nó ghi rõ đỏ ở đâu và cách xem chi tiết.
 
@@ -162,7 +162,7 @@ lỗi từng làm mất $7 trong một lần chạy thật (đặt 18 giây, ra 
 ```
 src/
 ├── agents/        (10 file)  Bộ não. Điều phối + các chuyên gia gọi AI.
-├── core/          (107 file) Toàn bộ logic nghiệp vụ. KHÔNG gọi mạng, KHÔNG đọc cấu hình.
+├── core/          (106 file) Toàn bộ logic nghiệp vụ. KHÔNG gọi mạng, KHÔNG đọc cấu hình.
 ├── api/           (33 file)  Máy chủ HTTP, 3 trang web, ~70 đường API, tài khoản & tiền.
 ├── application/   (14 file)  Lắp ráp hệ thống + các lệnh chạy từ dòng lệnh.
 ├── providers/     (7 file)   NƠI DUY NHẤT gọi ra Atlas Cloud qua internet.
@@ -172,10 +172,14 @@ src/
 └── utils/         (12 file)  Công cụ nhỏ dùng chung.
 
 tests/       98 bài kiểm tra không tốn tiền — lưới an toàn của bạn
-scripts/     ~60 công cụ vận hành + 7 bài soi toàn dự án
+scripts/     ~60 công cụ vận hành + 9 bài soi toàn dự án
 docs/        Tài liệu chi tiết
 external/    12 repo tham khảo (KHÔNG phải code chạy — xem mục 7)
 ```
+
+> Muốn tra **từng module một làm gì**: [`docs/BAN-DO-MA-NGUON.md`](docs/BAN-DO-MA-NGUON.md) —
+> bảng 187 module do máy sinh từ chú thích trong chính mã nguồn, `npm test` báo đỏ nếu nó lệch code.
+
 
 **Vì sao code lại làm thế:** [`docs/QUYET-DINH-KY-THUAT.md`](docs/QUYET-DINH-KY-THUAT.md) —
 đọc trước khi sửa. Nhiều đoạn trông vòng vo nhưng tồn tại vì một sự cố đã làm mất tiền thật.
