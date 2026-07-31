@@ -31,18 +31,20 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const testsDir = join(repoRoot, "tests");
 
 /**
- * Source-text assertions remaining, measured 2026-07-31: 132 of 1,610 checks (8%).
+ * Source-text assertions remaining, measured 2026-07-31: 129, after four were deleted from
+ * run-render-failure-resilience-smoke.mjs once a behavioural file covered the same rule for real.
  * Lower this when you convert some. Raising it means shipping a check that cannot fail when the
  * feature breaks.
  *
  * Worst offenders at the time of writing, and the honest note that the third one is recent work:
  *   run-input-matrix-smoke.mjs            45
  *   run-talking-duration-fill-smoke.mjs   12
- *   run-render-failure-resilience-smoke   11  <- written 2026-07-30, mostly source assertions
+ *   run-render-failure-resilience-smoke    8  <- was 11; the four that a real regression could
+ *                                              not turn red were removed, not rewritten
  *   run-pipeline-upgrades-smoke.mjs       10
  * Knowing better is not the same as doing better; that is why this is a machine check and not a note.
  */
-const BUDGET = 132;
+const BUDGET = 129;
 
 /** A check line that reads product source and asserts something about the text it finds there. */
 const READS_PRODUCT_SOURCE = /(?:Src|Source|source)\s*(?:\.includes\(|\.match\(|\.indexOf\()|\.test\((?:\w*(?:Src|Source|source))\)/u;

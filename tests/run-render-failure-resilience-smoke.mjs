@@ -49,25 +49,13 @@ check("provider_failure_budget_is_a_plain_constant",
 check("provider_failure_budget_is_not_a_function_of_quality",
   !/PROVIDER_FAILURE_RETRY_ATTEMPTS\s*\(/.test(settingsSource) &&
   !/function PROVIDER_FAILURE_RETRY/.test(settingsSource));
-// The retry loop must re-submit the SAME prompt: there is nothing to correct when the provider
-// simply did not produce a clip, and "correcting" a fine prompt would make the next take worse.
-const retryLoop = directorSource.slice(
-  directorSource.indexOf("let providerRetry = 1;"),
-  directorSource.indexOf("let repairAttempt = 1;")
-);
-check("provider_retry_reuses_the_same_prompt",
-  retryLoop.includes("compiledPrompt: selectedCandidate.compiledPrompt") && !retryLoop.includes("compileRepairAttempt"),
-  retryLoop.slice(0, 160));
-check("provider_retry_stops_once_a_clip_arrives", retryLoop.includes("isProviderRenderFailure(selectedCandidate)"));
-
-// A "succeeded" prediction carrying no output URL is still a failure — this is the shape that used to
-// slip through as success and then break assembly.
-const predicate = directorSource.slice(
-  directorSource.indexOf("function isProviderRenderFailure"),
-  directorSource.indexOf("function isProviderRenderFailure") + 420
-);
-check("empty_output_counts_as_provider_failure", /outputUrls\.length === 0/.test(predicate), predicate.slice(0, 200));
-check("non_succeeded_counts_as_provider_failure", /status !== "succeeded"/.test(predicate));
+// The retry itself — that a failed shot is re-submitted, that "succeeded with no output URL" counts
+// as a failure, and that the RE-RENDERED clip is the one delivered — is proved by running the real
+// DirectorAgent against a provider that fails on demand, in run-provider-retry-behaviour-smoke.mjs.
+// Four checks used to live here that searched this file for the retry loop's source text. They were
+// deleted rather than kept alongside: inverting candidate ordering, so the failed take wins and the
+// customer receives the broken clip, left all four green and the behavioural file red.
+// The remaining checks below cover what that run does NOT reach: the cost ceiling's arithmetic.
 
 // --- 2. Those extra submissions are real renders, so the ceiling has to include them.
 check("cost_ceiling_counts_provider_retries", /PROVIDER_FAILURE_RETRY_ATTEMPTS/.test(costGateSource));
