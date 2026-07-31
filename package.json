@@ -186,7 +186,8 @@
     "validation:wire-contract": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-wire-contract-smoke.mjs",
     "validation:published-secrets": "node scripts/audit-published-secrets.mjs",
     "validation:tenant-isolation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-tenant-isolation-smoke.mjs",
-    "validation:test-integrity": "node scripts/audit-test-integrity.mjs"
+    "validation:test-integrity": "node scripts/audit-test-integrity.mjs",
+    "validation:assembly-delivery": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-assembly-delivery-smoke.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -77,6 +77,11 @@ export class AssemblyEngine {
     // Working copies and intermediate renders are deleted on every exit path (success or
     // error); the final deliverable and caption sidecar are never in this list.
     const intermediateCleanupPaths: string[] = [...localClipPaths];
+    // The stage that writes input.outputPath depends on which stages are enabled, so on some
+    // combinations the last stage to run writes an intermediate and THAT file is the deliverable.
+    // Cleanup must protect whatever we actually return, not only the path that was requested,
+    // or the caller receives a record pointing at a file this method just deleted.
+    let deliveredPath = input.outputPath;
     try {
     const concatListPath = join(input.workDirectory, `${input.projectId}_concat.txt`);
     intermediateCleanupPaths.push(concatListPath);
@@ -197,6 +202,7 @@ export class AssemblyEngine {
         )
       : undefined;
     const outputPath = audioMix?.outputPath ?? videoAfterCaptions;
+    deliveredPath = outputPath;
     const inspection = this.mediaInspector.inspectDelivery(await this.mediaInspector.probe(outputPath, signal));
     const frameSamples = input.frameSamplingOptions
       ? await this.mediaInspector.sampleFrames(outputPath, input.frameSamplingOptions, signal)
@@ -219,14 +225,14 @@ export class AssemblyEngine {
       ...(frameSamples && frameSamples.length > 0 ? { frameSamples } : {})
     };
     } finally {
-      await this.cleanupIntermediatePaths(intermediateCleanupPaths, input.outputPath);
+      await this.cleanupIntermediatePaths(intermediateCleanupPaths, [input.outputPath, deliveredPath]);
     }
   }
 
   /** Best-effort removal of working copies/intermediates; never touches the deliverable. */
-  private async cleanupIntermediatePaths(paths: readonly string[], keepOutputPath: string): Promise<void> {
-    const keep = resolve(keepOutputPath);
-    const unique = [...new Set(paths.map((path) => resolve(path)))].filter((path) => path !== keep);
+  private async cleanupIntermediatePaths(paths: readonly string[], keepPaths: readonly string[]): Promise<void> {
+    const keep = new Set(keepPaths.map((path) => resolve(path)));
+    const unique = [...new Set(paths.map((path) => resolve(path)))].filter((path) => !keep.has(path));
     for (const path of unique) {
       try {
         await rm(path, { force: true });
